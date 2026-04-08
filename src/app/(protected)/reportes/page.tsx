@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -146,9 +147,16 @@ export default function ReportesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Reportes de Asistencia</h1>
-        <p className="text-gray-500 mt-1">Ranking y estadísticas por convocatoria</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Reportes de Asistencia</h1>
+          <p className="text-gray-500 mt-1">Ranking y estadísticas por convocatoria</p>
+        </div>
+        <Link href="/reportes/partidos">
+          <Button variant="outline" className="text-blue-600 border-blue-300 hover:bg-blue-50">
+            Reporte de Partidos →
+          </Button>
+        </Link>
       </div>
 
       {/* Filtros */}

@@ -187,16 +187,22 @@ model TestEvaluation {
 // ─── PARTIDOS ─────────────────────────────────────────────────────────────────
 
 model Match {
-  id             String    @id @default(cuid())
-  matchDate      DateTime  @db.Date
-  matchType      MatchType
-  opponent       String?
-  location       String?
-  result         String?
-  notes          String?
-  quarters       Int       @default(4)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  matchDate        DateTime  @db.Date
+  matchType        MatchType
+  opponent         String?
+  location         String?
+  homeScore        Int?
+  awayScore        Int?
+  quarterDuration  Int?      // minutes per quarter
+  notes            String?
+  // Team evaluations 1-4
+  evalOverall      Int?
+  evalAttack       Int?
+  evalDefense      Int?
+  evalFinishing    Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   convocatoriaId String
   convocatoria   Convocatoria @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)

@@ -31,7 +31,11 @@ export async function POST(
 
   const { id: convocatoriaId } = await params;
   const body = await req.json();
-  const { matchDate, matchType, opponent, location, result, notes, quarters } = body;
+  const {
+    matchDate, matchType, opponent, location,
+    homeScore, awayScore, quarterDuration, notes,
+    evalOverall, evalAttack, evalDefense, evalFinishing,
+  } = body;
 
   if (!matchDate || !matchType) {
     return NextResponse.json({ error: "Fecha y tipo son requeridos" }, { status: 400 });
@@ -44,9 +48,14 @@ export async function POST(
       matchType,
       opponent: opponent ?? null,
       location: location ?? null,
-      result: result ?? null,
+      homeScore: homeScore ?? null,
+      awayScore: awayScore ?? null,
+      quarterDuration: quarterDuration ?? null,
       notes: notes ?? null,
-      quarters: quarters ?? 4,
+      evalOverall: evalOverall ?? null,
+      evalAttack: evalAttack ?? null,
+      evalDefense: evalDefense ?? null,
+      evalFinishing: evalFinishing ?? null,
       createdById: session.user?.id ?? "",
     },
   });

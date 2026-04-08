@@ -13,7 +13,16 @@ export async function GET(
   const match = await prisma.match.findUnique({
     where: { id: matchId },
     include: {
-      convocatoria: { select: { id: true, name: true, players: { include: { player: true }, where: { status: "ACTIVE" } } } },
+      convocatoria: {
+        select: {
+          id: true,
+          name: true,
+          players: {
+            where: { status: "ACTIVE" },
+            include: { player: true },
+          },
+        },
+      },
       createdBy: { select: { name: true } },
       playerStats: {
         include: { player: { select: { id: true, firstName: true, lastName: true, club: true } } },
@@ -40,10 +49,16 @@ export async function PUT(
   const match = await prisma.match.update({
     where: { id: matchId },
     data: {
-      ...(body.result !== undefined && { result: body.result }),
-      ...(body.notes !== undefined && { notes: body.notes }),
       ...(body.opponent !== undefined && { opponent: body.opponent }),
       ...(body.location !== undefined && { location: body.location }),
+      ...(body.homeScore !== undefined && { homeScore: body.homeScore }),
+      ...(body.awayScore !== undefined && { awayScore: body.awayScore }),
+      ...(body.quarterDuration !== undefined && { quarterDuration: body.quarterDuration }),
+      ...(body.notes !== undefined && { notes: body.notes }),
+      ...(body.evalOverall !== undefined && { evalOverall: body.evalOverall }),
+      ...(body.evalAttack !== undefined && { evalAttack: body.evalAttack }),
+      ...(body.evalDefense !== undefined && { evalDefense: body.evalDefense }),
+      ...(body.evalFinishing !== undefined && { evalFinishing: body.evalFinishing }),
     },
   });
 
