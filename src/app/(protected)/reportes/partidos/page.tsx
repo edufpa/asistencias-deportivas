@@ -67,12 +67,19 @@ export default function ReportePartidosPage() {
 
   const fetchReporte = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ matchType });
-    if (selectedConv) params.set("convocatoriaId", selectedConv);
-    if (dateFrom) params.set("dateFrom", dateFrom);
-    if (dateTo) params.set("dateTo", dateTo);
-    const res = await fetch(`/api/reportes/partidos?${params}`);
-    if (res.ok) setData(await res.json());
+    try {
+      const params = new URLSearchParams({ matchType });
+      if (selectedConv) params.set("convocatoriaId", selectedConv);
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo) params.set("dateTo", dateTo);
+      const res = await fetch(`/api/reportes/partidos?${params}`);
+      if (res.ok) {
+        const d = await res.json();
+        if (d.matches && Array.isArray(d.matches)) setData(d);
+      }
+    } catch (e) {
+      console.error("Error cargando reporte:", e);
+    }
     setLoading(false);
   }, [selectedConv, matchType, dateFrom, dateTo]);
 
@@ -242,7 +249,7 @@ export default function ReportePartidosPage() {
                             )}
                           </div>
                           <p className="text-sm text-gray-500 capitalize">
-                            {format(new Date(m.matchDate + "T12:00:00"), "EEEE d MMM yyyy", { locale: es })}
+                            {format(new Date(m.matchDate), "EEEE d MMM yyyy", { locale: es })}
                             {m.location ? ` · ${m.location}` : ""}
                             {m.quarterDuration ? ` · ${m.quarterDuration} min/cuarto` : ""}
                           </p>

@@ -175,7 +175,7 @@ export default function PartidosPage() {
                 </CardHeader>
                 <CardContent className="space-y-1.5">
                   <p className="text-sm text-gray-600 capitalize">
-                    {format(new Date(m.matchDate + "T12:00:00"), "EEEE d 'de' MMMM yyyy", { locale: es })}
+                    {format(new Date(m.matchDate), "EEEE d 'de' MMMM yyyy", { locale: es })}
                   </p>
                   {m.location && <p className="text-xs text-gray-400">📍 {m.location}</p>}
                   {(m.homeScore !== null && m.awayScore !== null) && (

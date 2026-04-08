@@ -204,7 +204,7 @@ export default function MatchDetailPage() {
             </Badge>
           </div>
           <p className="text-gray-500 mt-1 capitalize">
-            {format(new Date(match.matchDate + "T12:00:00"), "EEEE d 'de' MMMM yyyy", { locale: es })}
+            {format(new Date(match.matchDate), "EEEE d 'de' MMMM yyyy", { locale: es })}
             {match.location ? ` · ${match.location}` : ""}
           </p>
           {match.quarterDuration && (
