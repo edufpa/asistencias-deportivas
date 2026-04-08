@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -16,7 +17,8 @@ const navLinks = [
   { href: "/players", label: "Jugadores" },
   { href: "/convocatorias", label: "Convocatorias" },
   { href: "/tests", label: "Tests" },
-  { href: "/reportes", label: "Reportes" },
+  { href: "/reportes", label: "Asistencias" },
+  { href: "/reportes/partidos", label: "Partidos" },
 ];
 
 export function Navbar() {
@@ -27,9 +29,12 @@ export function Navbar() {
     <header className="border-b bg-white sticky top-0 z-50 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center gap-8">
-            <Link href="/dashboard" className="font-bold text-lg text-blue-700">
-              AsistenciasDeportivas
+          <div className="flex items-center gap-6">
+            <Link href="/dashboard" className="flex items-center gap-2 shrink-0">
+              <Image src="/logo.png" alt="FDNDA" width={36} height={44} className="object-contain" priority />
+              <span className="font-bold text-sm text-blue-900 hidden lg:block leading-tight">
+                FDNDA<br /><span className="text-xs font-normal text-gray-500">Asistencias</span>
+              </span>
             </Link>
             <nav className="hidden md:flex gap-1">
               {navLinks.map((link) => (

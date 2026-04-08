@@ -132,23 +132,28 @@ export default function PlayersPage() {
                     {format(new Date(p.birthDate), "d MMM yyyy", { locale: es })}
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-1 flex-wrap">
                       <Link href={`/players/${p.id}/asistencia`}>
-                        <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700">
-                          Asistencia
+                        <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700 text-xs">
+                          📋 Asistencia
                         </Button>
                       </Link>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEdit(p)}
-                      >
+                      <Link href={`/players/${p.id}/tests`}>
+                        <Button variant="ghost" size="sm" className="text-purple-600 hover:text-purple-700 text-xs">
+                          🏋️ Tests
+                        </Button>
+                      </Link>
+                      <Link href={`/players/${p.id}/partidos`}>
+                        <Button variant="ghost" size="sm" className="text-green-600 hover:text-green-700 text-xs">
+                          ⚽ Partidos
+                        </Button>
+                      </Link>
+                      <Button variant="ghost" size="sm" className="text-xs" onClick={() => handleEdit(p)}>
                         Editar
                       </Button>
                       <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-600 hover:text-red-700"
+                        variant="ghost" size="sm"
+                        className="text-red-600 hover:text-red-700 text-xs"
                         onClick={() => handleDelete(p.id, `${p.firstName} ${p.lastName}`)}
                       >
                         Eliminar

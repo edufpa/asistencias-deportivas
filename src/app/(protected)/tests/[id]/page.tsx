@@ -19,7 +19,7 @@ const TeamBarChart = dynamic(
   { ssr: false, loading: () => <div className="h-64 animate-pulse bg-gray-100 rounded-lg" /> }
 );
 const IndividualLineChart = dynamic(
-  () => import("./Charts").then((m) => m.IndividualLineChart),
+  () => import("@/components/charts/TestLineChart").then((m) => m.TestLineChart),
   { ssr: false, loading: () => <div className="h-52 animate-pulse bg-gray-100 rounded-lg" /> }
 );
 
@@ -234,11 +234,7 @@ export default function TestDetailPage() {
               {individualChartData.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-6">Sin evaluaciones para este jugador</p>
               ) : (
-                <IndividualLineChart
-                  data={individualChartData}
-                  unit={test.unit}
-                  testName={test.name}
-                />
+                <IndividualLineChart data={individualChartData} unit={test.unit} testName={test.name} />
               )}
               {playerHistory.length > 0 && (
                 <div className="mt-3 border rounded-lg overflow-hidden">
