@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
       evalDefense: m.evalDefense,
       evalFinishing: m.evalFinishing,
       notes: m.notes,
+      convocatoriaId: m.convocatoriaId,
       convocatoriaName: m.convocatoria.name,
       createdBy: m.createdBy.name,
       totalGoals,
