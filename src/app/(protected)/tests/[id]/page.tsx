@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -12,9 +13,15 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend,
-} from "recharts";
+
+const TeamBarChart = dynamic(
+  () => import("./Charts").then((m) => m.TeamBarChart),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse bg-gray-100 rounded-lg" /> }
+);
+const IndividualLineChart = dynamic(
+  () => import("./Charts").then((m) => m.IndividualLineChart),
+  { ssr: false, loading: () => <div className="h-52 animate-pulse bg-gray-100 rounded-lg" /> }
+);
 
 type Evaluation = {
   id: string;
@@ -38,7 +45,6 @@ type Player = { id: string; firstName: string; lastName: string; club: string | 
 
 export default function TestDetailPage() {
   const { id: testId } = useParams<{ id: string }>();
-  const [mounted, setMounted] = useState(false);
   const [test, setTest] = useState<Test | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [evalDate, setEvalDate] = useState(new Date().toISOString().split("T")[0]);
@@ -55,7 +61,6 @@ export default function TestDetailPage() {
   }, [testId]);
 
   useEffect(() => {
-    setMounted(true);
     fetchTest();
     fetch("/api/players").then((r) => r.json()).then((d) => {
       if (Array.isArray(d)) setPlayers(d);
@@ -179,17 +184,9 @@ export default function TestDetailPage() {
           <CardContent>
             {teamChartData.length === 0 ? (
               <p className="text-gray-400 text-sm text-center py-8">Sin datos aún</p>
-            ) : mounted ? (
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={teamChartData} margin={{ top: 4, right: 8, left: -10, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} angle={-30} textAnchor="end" />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(v) => [`${v} ${test.unit}`, "Mejor marca"]} />
-                  <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <div className="h-64 animate-pulse bg-gray-100 rounded-lg" />}
+            ) : (
+              <TeamBarChart data={teamChartData} unit={test.unit} />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -236,26 +233,13 @@ export default function TestDetailPage() {
             <CardContent>
               {individualChartData.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-6">Sin evaluaciones para este jugador</p>
-              ) : mounted ? (
-                <ResponsiveContainer width="100%" height={220}>
-                  <LineChart data={individualChartData} margin={{ top: 4, right: 8, left: -10, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(v) => [`${v} ${test.unit}`, test.name]} />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      dot={{ r: 5 }}
-                      activeDot={{ r: 7 }}
-                      name={`${test.name} (${test.unit})`}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : <div className="h-52 animate-pulse bg-gray-100 rounded-lg" />}
+              ) : (
+                <IndividualLineChart
+                  data={individualChartData}
+                  unit={test.unit}
+                  testName={test.name}
+                />
+              )}
               {playerHistory.length > 0 && (
                 <div className="mt-3 border rounded-lg overflow-hidden">
                   <table className="w-full text-sm">
