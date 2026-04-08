@@ -8,6 +8,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatSecondsAsMmSsCc, formatTestValue, isTimeLikeUnit } from "@/lib/testTimeFormat";
 
 const IndividualLineChart = dynamic(
   () => import("@/components/charts/TestLineChart").then((m) => m.TestLineChart),
@@ -71,10 +72,13 @@ export default function PlayerTestsPage() {
             const best = t.higherIsBetter
               ? sorted.reduce((a, b) => (b.value > a.value ? b : a))
               : sorted.reduce((a, b) => (b.value < a.value ? b : a));
+            const timeU = isTimeLikeUnit(t.unit);
+            const avgSec = sorted.reduce((s, e) => s + e.value, 0) / sorted.length;
             const chartData = sorted.map((ev) => ({
               date: format(new Date(ev.evalDate), "d MMM", { locale: es }),
               value: ev.value,
             }));
+            const chartFmt = timeU ? (n: number) => formatSecondsAsMmSsCc(n) : undefined;
 
             return (
               <Card key={t.testId}>
@@ -95,24 +99,24 @@ export default function PlayerTestsPage() {
                 <CardContent>
                   <div className="grid sm:grid-cols-3 gap-4 mb-4">
                     <div className="text-center bg-gray-50 rounded-lg p-3">
-                      <div className="text-2xl font-bold text-blue-700">{latest.value}</div>
+                      <div className="text-2xl font-bold text-blue-700 font-mono">{formatTestValue(latest.value, t.unit)}</div>
                       <p className="text-xs text-gray-500">{t.unit} — Último</p>
                       <p className="text-xs text-gray-400">{format(new Date(latest.evalDate), "d MMM yyyy", { locale: es })}</p>
                     </div>
                     <div className="text-center bg-gray-50 rounded-lg p-3">
-                      <div className="text-2xl font-bold text-green-600">{best.value}</div>
+                      <div className="text-2xl font-bold text-green-600 font-mono">{formatTestValue(best.value, t.unit)}</div>
                       <p className="text-xs text-gray-500">{t.unit} — {t.higherIsBetter ? "Máximo" : "Mínimo"}</p>
                       <p className="text-xs text-gray-400">{format(new Date(best.evalDate), "d MMM yyyy", { locale: es })}</p>
                     </div>
                     <div className="text-center bg-gray-50 rounded-lg p-3">
-                      <div className="text-2xl font-bold text-gray-700">
-                        {(sorted.reduce((s, e) => s + e.value, 0) / sorted.length).toFixed(1)}
+                      <div className="text-2xl font-bold text-gray-700 font-mono">
+                        {timeU ? formatSecondsAsMmSsCc(avgSec) : avgSec.toFixed(1)}
                       </div>
                       <p className="text-xs text-gray-500">{t.unit} — Promedio</p>
                     </div>
                   </div>
                   {sorted.length > 1 && (
-                    <IndividualLineChart data={chartData} unit={t.unit} testName={t.testName} />
+                    <IndividualLineChart data={chartData} unit={t.unit} testName={t.testName} formatValue={chartFmt} />
                   )}
                   <div className="mt-3 overflow-x-auto">
                     <table className="w-full text-sm">
@@ -125,7 +129,7 @@ export default function PlayerTestsPage() {
                         {[...sorted].reverse().map((ev) => (
                           <tr key={ev.id}>
                             <td className="px-3 py-1.5 text-gray-600">{format(new Date(ev.evalDate), "d MMM yyyy", { locale: es })}</td>
-                            <td className="px-3 py-1.5 text-right font-bold text-blue-700">{ev.value} {t.unit}</td>
+                            <td className="px-3 py-1.5 text-right font-bold text-blue-700 font-mono">{formatTestValue(ev.value, t.unit)}</td>
                             <td className="px-3 py-1.5 text-gray-400 italic text-xs">{ev.notes ?? "—"}</td>
                           </tr>
                         ))}

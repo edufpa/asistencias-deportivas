@@ -14,6 +14,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { EvaluationTimeInputs } from "@/components/tests/EvaluationTimeInputs";
+import {
+  formatSecondsAsMmSsCc,
+  formatTestValue,
+  isCompleteTimeParts,
+  isTimeLikeUnit,
+  secondsToTimePartsStrings,
+  timePartsStringsToSeconds,
+  type TimePartsStrings,
+} from "@/lib/testTimeFormat";
 
 const TeamBarChart = dynamic(
   () => import("./Charts").then((m) => m.TeamBarChart),
@@ -50,6 +60,7 @@ export default function TestDetailPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [evalDate, setEvalDate] = useState(new Date().toISOString().split("T")[0]);
   const [entries, setEntries] = useState<Record<string, string>>({});
+  const [timeEntries, setTimeEntries] = useState<Record<string, TimePartsStrings>>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -57,9 +68,11 @@ export default function TestDetailPage() {
   const [playerHistory, setPlayerHistory] = useState<Evaluation[]>([]);
   const [editEval, setEditEval] = useState<Evaluation | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [editTimeParts, setEditTimeParts] = useState<TimePartsStrings>({ min: "", sec: "", cs: "" });
   const [editDate, setEditDate] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  const [evalFormError, setEvalFormError] = useState("");
 
   const fetchTest = useCallback(async () => {
     const res = await fetch(`/api/tests/${testId}`);
@@ -80,18 +93,45 @@ export default function TestDetailPage() {
 
   function openEditEval(ev: Evaluation) {
     setEditEval(ev);
-    setEditValue(String(ev.value));
+    setEvalFormError("");
+    if (test && isTimeLikeUnit(test.unit)) {
+      setEditTimeParts(secondsToTimePartsStrings(ev.value));
+      setEditValue("");
+    } else {
+      setEditValue(String(ev.value));
+      setEditTimeParts({ min: "", sec: "", cs: "" });
+    }
     setEditDate(ev.evalDate.split("T")[0]);
     setEditNotes(ev.notes ?? "");
   }
 
   async function handleSaveEval() {
-    if (!editEval) return;
+    if (!editEval || !test) return;
+    setEvalFormError("");
+    let valueNum: number;
+    if (isTimeLikeUnit(test.unit)) {
+      if (!isCompleteTimeParts(editTimeParts)) {
+        setEvalFormError("Completá minutos, segundos (0–59) y centésimas (0–99).");
+        return;
+      }
+      const s = timePartsStringsToSeconds(editTimeParts);
+      if (s === null) {
+        setEvalFormError("Valores de tiempo inválidos.");
+        return;
+      }
+      valueNum = s;
+    } else {
+      valueNum = Number(editValue);
+      if (Number.isNaN(valueNum)) {
+        setEvalFormError("Ingresá un número válido.");
+        return;
+      }
+    }
     setEditSaving(true);
     await fetch(`/api/tests/${testId}/evaluations/${editEval.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ value: Number(editValue), evalDate: editDate, notes: editNotes || null }),
+      body: JSON.stringify({ value: valueNum, evalDate: editDate, notes: editNotes || null }),
     });
     setEditSaving(false);
     setEditEval(null);
@@ -107,11 +147,26 @@ export default function TestDetailPage() {
   }
 
   async function handleSave() {
-    const toSave = Object.entries(entries)
-      .filter(([, v]) => v !== "" && !isNaN(Number(v)))
-      .map(([playerId, value]) => ({ playerId, value: Number(value), evalDate }));
+    if (!test) return;
+    let toSave: { playerId: string; value: number; evalDate: string }[] = [];
+    if (isTimeLikeUnit(test.unit)) {
+      for (const p of players) {
+        const parts = timeEntries[p.id];
+        if (!parts || !isCompleteTimeParts(parts)) continue;
+        const sec = timePartsStringsToSeconds(parts);
+        if (sec === null) continue;
+        toSave.push({ playerId: p.id, value: sec, evalDate });
+      }
+    } else {
+      toSave = Object.entries(entries)
+        .filter(([, v]) => v !== "" && !isNaN(Number(v)))
+        .map(([playerId, value]) => ({ playerId, value: Number(value), evalDate }));
+    }
 
-    if (toSave.length === 0) { setError("Ingresá al menos una marca"); return; }
+    if (toSave.length === 0) {
+      setError(isTimeLikeUnit(test.unit) ? "Ingresá al menos una marca con min : seg . cs completa" : "Ingresá al menos una marca");
+      return;
+    }
     setError(""); setSaving(true);
 
     const res = await fetch(`/api/tests/${testId}/evaluations`, {
@@ -124,6 +179,7 @@ export default function TestDetailPage() {
     if (!res.ok) { setError("Error al guardar"); return; }
     setSaved(true);
     setEntries({});
+    setTimeEntries({});
     fetchTest();
     if (selectedPlayer) fetchPlayerHistory(selectedPlayer);
   }
@@ -152,8 +208,19 @@ export default function TestDetailPage() {
 
   if (!test) return <div className="text-gray-400">Cargando...</div>;
 
+  const timeMode = isTimeLikeUnit(test.unit);
+  const chartFormatValue = timeMode ? (n: number) => formatSecondsAsMmSsCc(n) : undefined;
+
   const editEvalDialog = (
-    <Dialog open={!!editEval} onOpenChange={(o) => !o && setEditEval(null)}>
+    <Dialog
+      open={!!editEval}
+      onOpenChange={(o) => {
+        if (!o) {
+          setEditEval(null);
+          setEvalFormError("");
+        }
+      }}
+    >
       <DialogContent className="sm:max-w-sm">
         <DialogHeader><DialogTitle>Editar Evaluación</DialogTitle></DialogHeader>
         <div className="space-y-3">
@@ -161,10 +228,27 @@ export default function TestDetailPage() {
             <Label>Fecha</Label>
             <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
           </div>
-          <div className="space-y-1">
-            <Label>Marca ({test.unit})</Label>
-            <Input type="number" step="any" value={editValue} onChange={(e) => setEditValue(e.target.value)} />
-          </div>
+          {timeMode ? (
+            <div className="space-y-1">
+              <Label>Tiempo (min : seg . centésimas)</Label>
+              <p className="text-xs text-gray-500">Segundos 0–59, centésimas 0–99</p>
+              <EvaluationTimeInputs
+                value={editTimeParts}
+                onChange={(next) => {
+                  setEvalFormError("");
+                  setEditTimeParts(next);
+                }}
+              />
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <Label>Marca ({test.unit})</Label>
+              <Input type="number" step="any" value={editValue} onChange={(e) => setEditValue(e.target.value)} />
+            </div>
+          )}
+          {evalFormError && (
+            <Alert variant="destructive"><AlertDescription>{evalFormError}</AlertDescription></Alert>
+          )}
           <div className="space-y-1">
             <Label>Notas</Label>
             <Input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Observaciones..." />
@@ -207,27 +291,42 @@ export default function TestDetailPage() {
             </div>
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
             {saved && <Alert><AlertDescription className="text-green-700">✓ Marcas guardadas correctamente</AlertDescription></Alert>}
+            {timeMode && (
+              <p className="text-xs text-gray-500">
+                Tiempo: <span className="font-mono">min : seg . cs</span> (ej. 1:05.37 = 1 min 5 seg 37 centésimas)
+              </p>
+            )}
             <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
               {players.map((p) => (
-                <div key={p.id} className="flex items-center gap-3">
+                <div key={p.id} className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{p.lastName}, {p.firstName}</p>
                     {p.club && <p className="text-xs text-gray-400">{p.club}</p>}
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="—"
-                      value={entries[p.id] ?? ""}
-                      onChange={(e) => {
+                  {timeMode ? (
+                    <EvaluationTimeInputs
+                      value={timeEntries[p.id] ?? { min: "", sec: "", cs: "" }}
+                      onChange={(next) => {
                         setSaved(false);
-                        setEntries((prev) => ({ ...prev, [p.id]: e.target.value }));
+                        setTimeEntries((prev) => ({ ...prev, [p.id]: next }));
                       }}
-                      className="w-24 text-right"
                     />
-                    <span className="text-xs text-gray-500 w-8">{test.unit}</span>
-                  </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="—"
+                        value={entries[p.id] ?? ""}
+                        onChange={(e) => {
+                          setSaved(false);
+                          setEntries((prev) => ({ ...prev, [p.id]: e.target.value }));
+                        }}
+                        className="w-24 text-right"
+                      />
+                      <span className="text-xs text-gray-500 w-8">{test.unit}</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -246,7 +345,7 @@ export default function TestDetailPage() {
             {teamChartData.length === 0 ? (
               <p className="text-gray-400 text-sm text-center py-8">Sin datos aún</p>
             ) : (
-              <TeamBarChart data={teamChartData} unit={test.unit} />
+              <TeamBarChart data={teamChartData} unit={test.unit} formatValue={chartFormatValue} />
             )}
           </CardContent>
         </Card>
@@ -295,7 +394,7 @@ export default function TestDetailPage() {
               {individualChartData.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-6">Sin evaluaciones para este jugador</p>
               ) : (
-                <IndividualLineChart data={individualChartData} unit={test.unit} testName={test.name} />
+                <IndividualLineChart data={individualChartData} unit={test.unit} testName={test.name} formatValue={chartFormatValue} />
               )}
               {playerHistory.length > 0 && (
                 <div className="mt-3 border rounded-lg overflow-hidden">
@@ -312,7 +411,9 @@ export default function TestDetailPage() {
                       {[...playerHistory].reverse().map((ev) => (
                         <tr key={ev.id} className="hover:bg-gray-50">
                           <td className="px-3 py-2 text-gray-700">{format(new Date(ev.evalDate), "d MMM yyyy", { locale: es })}</td>
-                          <td className="px-3 py-2 text-right font-semibold text-blue-700">{ev.value} {test.unit}</td>
+                          <td className="px-3 py-2 text-right font-semibold text-blue-700 font-mono">
+                            {formatTestValue(ev.value, test.unit)}
+                          </td>
                           <td className="px-3 py-2 text-gray-500 italic text-xs">{ev.notes ?? "—"}</td>
                           <td className="px-3 py-2">
                             <div className="flex gap-1">
