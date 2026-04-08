@@ -9,6 +9,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search") ?? "";
 
+  const includeConvocatorias = searchParams.get("includeConvocatorias") === "true";
+
   const players = await prisma.player.findMany({
     where: search
       ? {
@@ -21,6 +23,14 @@ export async function GET(req: NextRequest) {
         }
       : undefined,
     orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    include: includeConvocatorias
+      ? {
+          convocatorias: {
+            where: { status: "ACTIVE" },
+            include: { convocatoria: { select: { id: true, name: true } } },
+          },
+        }
+      : undefined,
   });
 
   return NextResponse.json(players);

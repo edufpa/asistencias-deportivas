@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -101,8 +103,11 @@ function MiniBar({ value, max, color }: { value: number; max: number; color: str
 }
 
 export default function ReportesPage() {
+  const router = useRouter();
   const [convocatorias, setConvocatorias] = useState<Convocatoria[]>([]);
   const [selectedConv, setSelectedConv] = useState("");
+  const [showRegDialog, setShowRegDialog] = useState(false);
+  const [regConv, setRegConv] = useState("");
   const [sessionType, setSessionType] = useState("ALL");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -114,8 +119,12 @@ export default function ReportesPage() {
     fetch("/api/convocatorias")
       .then((r) => r.json())
       .then((d) => {
+        if (!Array.isArray(d)) return;
         setConvocatorias(d);
-        if (d.length > 0) setSelectedConv(d[0].id);
+        if (d.length > 0) {
+          setSelectedConv(d[0].id);
+          setRegConv(d[0].id);
+        }
       });
   }, []);
 
@@ -152,11 +161,12 @@ export default function ReportesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Reportes de Asistencia</h1>
           <p className="text-gray-500 mt-1">Ranking y estadísticas por convocatoria</p>
         </div>
-        <Link href={selectedConv ? `/convocatorias/${selectedConv}/asistencia` : "/convocatorias"}>
-          <Button className="bg-green-600 hover:bg-green-700 text-white">
-            + Registrar Asistencia
-          </Button>
-        </Link>
+        <Button
+          className="bg-green-600 hover:bg-green-700 text-white shrink-0"
+          onClick={() => setShowRegDialog(true)}
+        >
+          + Registrar Asistencia
+        </Button>
       </div>
 
       {/* Filtros */}
@@ -450,6 +460,38 @@ export default function ReportesPage() {
           </div>
         </>
       )}
+
+      {/* Dialog: Registrar Asistencia */}
+      <Dialog open={showRegDialog} onOpenChange={setShowRegDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Registrar Asistencia</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-gray-600">Seleccioná la convocatoria en la que querés registrar asistencia:</p>
+            <select
+              value={regConv}
+              onChange={(e) => setRegConv(e.target.value)}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Seleccioná una convocatoria</option>
+              {convocatorias.map((c) => (
+                <option key={c.id} value={c.id}>{c.name} {c.status === "CLOSED" ? "(Cerrada)" : ""}</option>
+              ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRegDialog(false)}>Cancelar</Button>
+            <Button
+              disabled={!regConv}
+              onClick={() => { setShowRegDialog(false); router.push(`/convocatorias/${regConv}/asistencia`); }}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Ir a registrar →
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

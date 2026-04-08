@@ -19,6 +19,7 @@ type Player = {
   lastName: string;
   documentId: string;
   club: string | null;
+  convocatorias?: { convocatoria: { id: string; name: string } }[];
 };
 
 interface Props {
@@ -52,9 +53,9 @@ export function AddPlayersDialog({
     }
     const fetch_ = async () => {
       setLoading(true);
-      const res = await fetch(`/api/players?search=${encodeURIComponent(search)}`);
+      const res = await fetch(`/api/players?search=${encodeURIComponent(search)}&includeConvocatorias=true`);
       const data = await res.json();
-      setPlayers(data);
+      setPlayers(Array.isArray(data) ? data : []);
       setLoading(false);
     };
     const t = setTimeout(fetch_, 300);
@@ -134,12 +135,14 @@ export function AddPlayersDialog({
                     className="rounded"
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">
-                      {p.lastName}, {p.firstName}
-                    </p>
-                    <p className="text-xs text-gray-400">{p.documentId}</p>
+                    <p className="text-sm font-medium">{p.lastName}, {p.firstName}</p>
+                    <p className="text-xs text-gray-400">{p.documentId}{p.club ? ` · ${p.club}` : ""}</p>
+                    {p.convocatorias && p.convocatorias.length > 0 && (
+                      <p className="text-xs text-blue-500 mt-0.5">
+                        También en: {p.convocatorias.map((c) => c.convocatoria.name).join(", ")}
+                      </p>
+                    )}
                   </div>
-                  {p.club && <Badge variant="secondary" className="text-xs">{p.club}</Badge>}
                 </div>
               ))
             )}
