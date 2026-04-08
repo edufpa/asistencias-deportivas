@@ -87,13 +87,19 @@ export default function PartidosPage() {
 
   const fetchMatches = useCallback(async () => {
     setLoading(true);
-    const [mRes, cRes] = await Promise.all([
-      fetch(`/api/convocatorias/${convocatoriaId}/partidos`),
-      fetch(`/api/convocatorias/${convocatoriaId}`),
-    ]);
-    setMatches(await mRes.json());
-    const conv = await cRes.json();
-    setConvName(conv.name);
+    try {
+      const [mRes, cRes] = await Promise.all([
+        fetch(`/api/convocatorias/${convocatoriaId}/partidos`),
+        fetch(`/api/convocatorias/${convocatoriaId}`),
+      ]);
+      const mData = await mRes.json();
+      setMatches(Array.isArray(mData) ? mData : []);
+      const conv = await cRes.json();
+      if (conv?.name) setConvName(conv.name);
+    } catch (e) {
+      console.error("Error cargando partidos:", e);
+      setMatches([]);
+    }
     setLoading(false);
   }, [convocatoriaId]);
 
