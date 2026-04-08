@@ -68,7 +68,7 @@ async function getDashboardData() {
     }),
   ]);
 
-  const presentCount = attendanceStats.find((s) => s.status === AttendanceStatus.PRESENT)?._count._all ?? 0;
+  const presentCount = attendanceStats.find((s) => s.status === AttendanceStatus.ATTENDED)?._count._all ?? 0;
   const absentCount =
     (attendanceStats.find((s) => s.status === AttendanceStatus.ABSENT_JUSTIFIED)?._count._all ?? 0) +
     (attendanceStats.find((s) => s.status === AttendanceStatus.ABSENT_UNJUSTIFIED)?._count._all ?? 0);
