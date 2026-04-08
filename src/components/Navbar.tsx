@@ -83,11 +83,11 @@ export function Navbar() {
               <DropdownMenuContent align="end">
                 {isAdmin && (
                   <>
-                    <DropdownMenuItem asChild className="cursor-pointer">
-                      <Link href="/admin/usuarios">👥 Usuarios</Link>
+                    <DropdownMenuItem className="cursor-pointer p-0">
+                      <Link href="/admin/usuarios" className="w-full px-2 py-1.5 block">👥 Usuarios</Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem asChild className="cursor-pointer">
-                      <Link href="/admin/logs">📋 Actividad</Link>
+                    <DropdownMenuItem className="cursor-pointer p-0">
+                      <Link href="/admin/logs" className="w-full px-2 py-1.5 block">📋 Actividad</Link>
                     </DropdownMenuItem>
                     <div className="h-px bg-gray-100 my-1" />
                   </>
