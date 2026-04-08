@@ -152,9 +152,9 @@ export default function ReportesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Reportes de Asistencia</h1>
           <p className="text-gray-500 mt-1">Ranking y estadísticas por convocatoria</p>
         </div>
-        <Link href="/reportes/partidos">
-          <Button variant="outline" className="text-blue-600 border-blue-300 hover:bg-blue-50">
-            Reporte de Partidos →
+        <Link href={selectedConv ? `/convocatorias/${selectedConv}/asistencia` : "/convocatorias"}>
+          <Button className="bg-green-600 hover:bg-green-700 text-white">
+            + Registrar Asistencia
           </Button>
         </Link>
       </div>
