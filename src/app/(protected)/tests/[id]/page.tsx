@@ -38,6 +38,7 @@ type Player = { id: string; firstName: string; lastName: string; club: string | 
 
 export default function TestDetailPage() {
   const { id: testId } = useParams<{ id: string }>();
+  const [mounted, setMounted] = useState(false);
   const [test, setTest] = useState<Test | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [evalDate, setEvalDate] = useState(new Date().toISOString().split("T")[0]);
@@ -54,8 +55,11 @@ export default function TestDetailPage() {
   }, [testId]);
 
   useEffect(() => {
+    setMounted(true);
     fetchTest();
-    fetch("/api/players").then((r) => r.json()).then(setPlayers);
+    fetch("/api/players").then((r) => r.json()).then((d) => {
+      if (Array.isArray(d)) setPlayers(d);
+    });
   }, [fetchTest]);
 
   async function fetchPlayerHistory(pid: string) {
@@ -103,7 +107,7 @@ export default function TestDetailPage() {
 
   // Build individual chart
   const individualChartData = playerHistory.map((ev) => ({
-    date: format(new Date(ev.evalDate + "T12:00:00"), "d MMM", { locale: es }),
+    date: format(new Date(ev.evalDate), "d MMM", { locale: es }),
     value: ev.value,
   }));
 
@@ -175,7 +179,7 @@ export default function TestDetailPage() {
           <CardContent>
             {teamChartData.length === 0 ? (
               <p className="text-gray-400 text-sm text-center py-8">Sin datos aún</p>
-            ) : (
+            ) : mounted ? (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={teamChartData} margin={{ top: 4, right: 8, left: -10, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -185,7 +189,7 @@ export default function TestDetailPage() {
                   <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            )}
+            ) : <div className="h-64 animate-pulse bg-gray-100 rounded-lg" />}
           </CardContent>
         </Card>
       </div>
@@ -232,7 +236,7 @@ export default function TestDetailPage() {
             <CardContent>
               {individualChartData.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-6">Sin evaluaciones para este jugador</p>
-              ) : (
+              ) : mounted ? (
                 <ResponsiveContainer width="100%" height={220}>
                   <LineChart data={individualChartData} margin={{ top: 4, right: 8, left: -10, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -251,7 +255,7 @@ export default function TestDetailPage() {
                     />
                   </LineChart>
                 </ResponsiveContainer>
-              )}
+              ) : <div className="h-52 animate-pulse bg-gray-100 rounded-lg" />}
               {playerHistory.length > 0 && (
                 <div className="mt-3 border rounded-lg overflow-hidden">
                   <table className="w-full text-sm">
@@ -266,7 +270,7 @@ export default function TestDetailPage() {
                       {[...playerHistory].reverse().map((ev) => (
                         <tr key={ev.id}>
                           <td className="px-3 py-2 text-gray-700">
-                            {format(new Date(ev.evalDate + "T12:00:00"), "d MMM yyyy", { locale: es })}
+                            {format(new Date(ev.evalDate), "d MMM yyyy", { locale: es })}
                           </td>
                           <td className="px-3 py-2 text-right font-semibold text-blue-700">
                             {ev.value} {test.unit}
