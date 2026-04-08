@@ -133,6 +133,11 @@ export default function PlayersPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
+                      <Link href={`/players/${p.id}/asistencia`}>
+                        <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-700">
+                          Asistencia
+                        </Button>
+                      </Link>
                       <Button
                         variant="ghost"
                         size="sm"

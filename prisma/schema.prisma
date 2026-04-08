@@ -18,6 +18,9 @@ model User {
   convocatorias      Convocatoria[]
   cortes             ConvocatoriaPlayer[] @relation("CortadoPor")
   attendanceSessions AttendanceSession[]
+  testsCreated       Test[]
+  testEvaluations    TestEvaluation[]
+  matchesCreated     Match[]
 
   @@map("users")
 }
@@ -39,6 +42,8 @@ model Player {
 
   convocatorias      ConvocatoriaPlayer[]
   attendanceRecords  AttendanceRecord[]
+  testEvaluations    TestEvaluation[]
+  matchStats         MatchPlayerStat[]
 
   @@map("players")
 }
@@ -57,6 +62,7 @@ model Convocatoria {
 
   players     ConvocatoriaPlayer[]
   sessions    AttendanceSession[]
+  matches     Match[]
 
   @@map("convocatorias")
 }
@@ -138,4 +144,94 @@ enum AttendanceStatus {
   ATTENDED
   ABSENT_JUSTIFIED
   ABSENT_UNJUSTIFIED
+}
+
+// ─── TESTS DE EVALUACIÓN ──────────────────────────────────────────────────────
+
+model Test {
+  id          String   @id @default(cuid())
+  name        String
+  unit        String   // "kg", "seg", "m", "rep", etc.
+  description String?
+  higherIsBetter Boolean @default(true) // true = mayor valor = mejor (fuerza); false = menor = mejor (velocidad)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id])
+
+  evaluations TestEvaluation[]
+
+  @@map("tests")
+}
+
+model TestEvaluation {
+  id           String   @id @default(cuid())
+  value        Float
+  evalDate     DateTime @db.Date
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  testId    String
+  test      Test   @relation(fields: [testId], references: [id], onDelete: Cascade)
+
+  playerId  String
+  player    Player @relation(fields: [playerId], references: [id])
+
+  recordedById String
+  recordedBy   User   @relation(fields: [recordedById], references: [id])
+
+  @@map("test_evaluations")
+}
+
+// ─── PARTIDOS ─────────────────────────────────────────────────────────────────
+
+model Match {
+  id             String    @id @default(cuid())
+  matchDate      DateTime  @db.Date
+  matchType      MatchType
+  opponent       String?
+  location       String?
+  result         String?
+  notes          String?
+  quarters       Int       @default(4)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  convocatoriaId String
+  convocatoria   Convocatoria @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  playerStats MatchPlayerStat[]
+
+  @@map("matches")
+}
+
+enum MatchType {
+  OFFICIAL
+  PRACTICE
+}
+
+model MatchPlayerStat {
+  id          String @id @default(cuid())
+  quarter     Int
+  goals       Int    @default(0)
+  assists     Int    @default(0)
+  recoveries  Int    @default(0)
+  expulsions  Int    @default(0)
+  penalties   Int    @default(0)
+  minutesPlayed Int? 
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  matchId  String
+  match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id])
+
+  @@unique([matchId, playerId, quarter])
+  @@map("match_player_stats")
 }

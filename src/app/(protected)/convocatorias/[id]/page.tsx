@@ -130,8 +130,13 @@ export default function ConvocatoriaDetailPage() {
             {format(new Date(convocatoria.startDate), "d MMM yyyy", { locale: es })}
           </p>
         </div>
-        {convocatoria.status === "ACTIVE" && (
-          <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 flex-wrap">
+          <Link href={`/convocatorias/${id}/partidos`}>
+            <Button variant="outline" className="text-blue-600 border-blue-300 hover:bg-blue-50">
+              Partidos
+            </Button>
+          </Link>
+          {convocatoria.status === "ACTIVE" && (
             <Button
               variant="outline"
               onClick={handleClose}
@@ -140,8 +145,8 @@ export default function ConvocatoriaDetailPage() {
             >
               Cerrar convocatoria
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
