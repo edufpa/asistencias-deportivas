@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { AttendanceStatus } from "@prisma/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
@@ -67,10 +68,10 @@ async function getDashboardData() {
     }),
   ]);
 
-  const presentCount = attendanceStats.find((s) => s.status === "PRESENT")?._count._all ?? 0;
+  const presentCount = attendanceStats.find((s) => s.status === AttendanceStatus.PRESENT)?._count._all ?? 0;
   const absentCount =
-    (attendanceStats.find((s) => s.status === "ABSENT_JUSTIFIED")?._count._all ?? 0) +
-    (attendanceStats.find((s) => s.status === "ABSENT_UNJUSTIFIED")?._count._all ?? 0);
+    (attendanceStats.find((s) => s.status === AttendanceStatus.ABSENT_JUSTIFIED)?._count._all ?? 0) +
+    (attendanceStats.find((s) => s.status === AttendanceStatus.ABSENT_UNJUSTIFIED)?._count._all ?? 0);
   const totalAttendance = presentCount + absentCount;
   const attendancePct = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : null;
 
