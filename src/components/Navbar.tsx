@@ -15,6 +15,7 @@ const navLinks = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/players", label: "Jugadores" },
   { href: "/convocatorias", label: "Convocatorias" },
+  { href: "/reportes", label: "Reportes" },
 ];
 
 export function Navbar() {
