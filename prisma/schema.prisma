@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  passwordHash  String
+  role          UserRole @default(COACH)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  convocatorias      Convocatoria[]
+  cortes             ConvocatoriaPlayer[] @relation("CortadoPor")
+  attendanceSessions AttendanceSession[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  COACH
+}
+
+model Player {
+  id         String   @id @default(cuid())
+  firstName  String
+  lastName   String
+  documentId String   @unique
+  club       String?
+  birthDate  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  convocatorias      ConvocatoriaPlayer[]
+  attendanceRecords  AttendanceRecord[]
+
+  @@map("players")
+}
+
+model Convocatoria {
+  id          String             @id @default(cuid())
+  name        String
+  description String?
+  startDate   DateTime           @default(now())
+  status      ConvocatoriaStatus @default(ACTIVE)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  createdBy   String
+  creator     User               @relation(fields: [createdBy], references: [id])
+
+  players     ConvocatoriaPlayer[]
+  sessions    AttendanceSession[]
+
+  @@map("convocatorias")
+}
+
+enum ConvocatoriaStatus {
+  ACTIVE
+  CLOSED
+}
+
+model ConvocatoriaPlayer {
+  id            String                   @id @default(cuid())
+  status        ConvocatoriaPlayerStatus @default(ACTIVE)
+  cutDate       DateTime?
+  cutReason     String?
+  joinedAt      DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  convocatoriaId String
+  convocatoria   Convocatoria @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
+
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id])
+
+  cutById String?
+  cutBy   User?   @relation("CortadoPor", fields: [cutById], references: [id])
+
+  @@unique([convocatoriaId, playerId])
+  @@map("convocatoria_players")
+}
+
+enum ConvocatoriaPlayerStatus {
+  ACTIVE
+  CUT
+}
+
+model AttendanceSession {
+  id          String      @id @default(cuid())
+  sessionDate DateTime    @db.Date
+  sessionType SessionType
+  createdAt   DateTime    @default(now())
+
+  convocatoriaId String
+  convocatoria   Convocatoria @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  records AttendanceRecord[]
+
+  @@unique([convocatoriaId, sessionDate, sessionType])
+  @@map("attendance_sessions")
+}
+
+enum SessionType {
+  TURNO_MANANA
+  TURNO_TARDE
+  PESAS
+}
+
+model AttendanceRecord {
+  id               String          @id @default(cuid())
+  status           AttendanceStatus
+  performanceScore Int?
+  absenceReason    String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  sessionId String
+  session   AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id])
+
+  @@unique([sessionId, playerId])
+  @@map("attendance_records")
+}
+
+enum AttendanceStatus {
+  ATTENDED
+  ABSENT_JUSTIFIED
+  ABSENT_UNJUSTIFIED
+}
