@@ -9,10 +9,14 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
+const GENDER_LABEL: Record<string, string> = { MALE: "Varones", FEMALE: "Damas", MIXED: "Mixto" };
+const GENDER_COLOR: Record<string, string> = { MALE: "bg-blue-100 text-blue-700", FEMALE: "bg-pink-100 text-pink-700", MIXED: "bg-purple-100 text-purple-700" };
+
 type Convocatoria = {
   id: string;
   name: string;
   description: string | null;
+  gender: string;
   status: "ACTIVE" | "CLOSED";
   startDate: string;
   creator: { name: string };
@@ -105,12 +109,14 @@ function ConvocatoriaCard({ convocatoria: c }: { convocatoria: Convocatoria }) {
         <CardHeader className="pb-2">
           <div className="flex items-start justify-between gap-2">
             <CardTitle className="text-base leading-tight">{c.name}</CardTitle>
-            <Badge
-              variant={c.status === "ACTIVE" ? "default" : "secondary"}
-              className="shrink-0"
-            >
-              {c.status === "ACTIVE" ? "Activa" : "Cerrada"}
-            </Badge>
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              <Badge variant={c.status === "ACTIVE" ? "default" : "secondary"}>
+                {c.status === "ACTIVE" ? "Activa" : "Cerrada"}
+              </Badge>
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${GENDER_COLOR[c.gender ?? "MIXED"]}`}>
+                {GENDER_LABEL[c.gender ?? "MIXED"]}
+              </span>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-1">

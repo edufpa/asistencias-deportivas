@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { log } from "@/lib/logger";
 
 export async function GET(
   _req: NextRequest,
@@ -49,14 +50,10 @@ export async function PUT(
 
   const player = await prisma.player.update({
     where: { id },
-    data: {
-      firstName,
-      lastName,
-      documentId,
-      club: club ?? null,
-      birthDate: new Date(birthDate),
-    },
+    data: { firstName, lastName, documentId, club: club ?? null, birthDate: new Date(birthDate) },
   });
+
+  await log({ userId: session.user?.id ?? "", action: "PLAYER_UPDATED", entity: "player", entityId: id, detail: `Jugador "${lastName}, ${firstName}" editado` });
 
   return NextResponse.json(player);
 }
@@ -69,7 +66,10 @@ export async function DELETE(
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
+  const player = await prisma.player.findUnique({ where: { id }, select: { firstName: true, lastName: true } });
   await prisma.player.delete({ where: { id } });
+
+  await log({ userId: session.user?.id ?? "", action: "PLAYER_DELETED", entity: "player", entityId: id, detail: `Jugador "${player?.lastName}, ${player?.firstName}" eliminado` });
 
   return NextResponse.json({ success: true });
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { log } from "@/lib/logger";
 
 export async function GET(req: NextRequest) {
   const session = await auth();
@@ -61,6 +62,8 @@ export async function POST(req: NextRequest) {
       birthDate: new Date(birthDate),
     },
   });
+
+  await log({ userId: session.user?.id ?? "", action: "PLAYER_CREATED", entity: "player", entityId: player.id, detail: `Jugador "${lastName}, ${firstName}" creado (Doc: ${documentId})` });
 
   return NextResponse.json(player, { status: 201 });
 }

@@ -21,6 +21,7 @@ model User {
   testsCreated       Test[]
   testEvaluations    TestEvaluation[]
   matchesCreated     Match[]
+  activityLogs       ActivityLog[]
 
   @@map("users")
 }
@@ -48,10 +49,17 @@ model Player {
   @@map("players")
 }
 
+enum Gender {
+  MALE
+  FEMALE
+  MIXED
+}
+
 model Convocatoria {
   id          String             @id @default(cuid())
   name        String
   description String?
+  gender      Gender             @default(MIXED)
   startDate   DateTime           @default(now())
   status      ConvocatoriaStatus @default(ACTIVE)
   createdAt   DateTime           @default(now())
@@ -218,6 +226,22 @@ model Match {
 enum MatchType {
   OFFICIAL
   PRACTICE
+}
+
+// ─── LOGS DE ACTIVIDAD ────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  action    String   // e.g. PLAYER_CREATED, CONV_CREATED, PLAYER_CUT, ATTENDANCE_SAVED
+  entity    String   // player, convocatoria, attendance, match, test, user
+  entityId  String?
+  detail    String?
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@map("activity_logs")
 }
 
 model MatchPlayerStat {

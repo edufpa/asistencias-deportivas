@@ -20,9 +20,16 @@ interface Props {
   onSuccess: () => void;
 }
 
+const GENDER_OPTIONS = [
+  { value: "MALE", label: "Varones" },
+  { value: "FEMALE", label: "Damas" },
+  { value: "MIXED", label: "Mixto" },
+];
+
 export function ConvocatoriaFormDialog({ open, onOpenChange, onSuccess }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [gender, setGender] = useState("MIXED");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -34,7 +41,7 @@ export function ConvocatoriaFormDialog({ open, onOpenChange, onSuccess }: Props)
     const res = await fetch("/api/convocatorias", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, description: description || null }),
+      body: JSON.stringify({ name, description: description || null, gender }),
     });
 
     setLoading(false);
@@ -47,6 +54,7 @@ export function ConvocatoriaFormDialog({ open, onOpenChange, onSuccess }: Props)
 
     setName("");
     setDescription("");
+    setGender("MIXED");
     onSuccess();
     onOpenChange(false);
   }
@@ -73,6 +81,21 @@ export function ConvocatoriaFormDialog({ open, onOpenChange, onSuccess }: Props)
               placeholder="Ej: Pretemporada 2026, Torneo Regional..."
             />
           </div>
+          <div className="space-y-2">
+            <Label>Género</Label>
+            <div className="flex gap-2">
+              {GENDER_OPTIONS.map((opt) => (
+                <button key={opt.value} type="button" onClick={() => setGender(opt.value)}
+                  className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                    gender === opt.value
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
+                  }`}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="space-y-1">
             <Label htmlFor="description">Descripción (opcional)</Label>
             <Textarea
@@ -80,7 +103,7 @@ export function ConvocatoriaFormDialog({ open, onOpenChange, onSuccess }: Props)
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Detalles adicionales sobre la convocatoria..."
-              rows={3}
+              rows={2}
             />
           </div>
           <DialogFooter>

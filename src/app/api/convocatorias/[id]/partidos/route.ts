@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { log } from "@/lib/logger";
 
 export async function GET(
   _req: NextRequest,
@@ -59,6 +60,8 @@ export async function POST(
       createdById: session.user?.id ?? "",
     },
   });
+
+  await log({ userId: session.user?.id ?? "", action: "MATCH_CREATED", entity: "match", entityId: match.id, detail: `Partido vs "${opponent ?? "Sin rival"}" creado en convocatoria ${convocatoriaId}` });
 
   return NextResponse.json(match, { status: 201 });
 }
