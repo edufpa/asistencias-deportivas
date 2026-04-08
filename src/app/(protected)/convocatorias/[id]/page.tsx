@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AddPlayersDialog } from "@/components/convocatorias/AddPlayersDialog";
 import { CutPlayerDialog } from "@/components/convocatorias/CutPlayerDialog";
 import Link from "next/link";
@@ -41,12 +45,19 @@ type Convocatoria = {
   id: string;
   name: string;
   description: string | null;
+  gender: "MALE" | "FEMALE" | "MIXED";
   status: "ACTIVE" | "CLOSED";
   startDate: string;
   creator: { id: string; name: string };
   players: ConvocatoriaPlayer[];
   sessions: Session[];
 };
+
+const GENDER_OPTIONS = [
+  { value: "MALE", label: "Varones" },
+  { value: "FEMALE", label: "Damas" },
+  { value: "MIXED", label: "Mixto" },
+] as const;
 
 const SESSION_LABELS: Record<string, string> = {
   TURNO_MANANA: "Turno Mañana",
@@ -64,6 +75,11 @@ export default function ConvocatoriaDetailPage() {
   const [addPlayersOpen, setAddPlayersOpen] = useState(false);
   const [cutTarget, setCutTarget] = useState<ConvocatoriaPlayer | null>(null);
   const [closingConv, setClosingConv] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDesc, setEditDesc] = useState("");
+  const [editGender, setEditGender] = useState<"MALE" | "FEMALE" | "MIXED">("MIXED");
+  const [editSaving, setEditSaving] = useState(false);
 
   const fetchConvocatoria = useCallback(async () => {
     const res = await fetch(`/api/convocatorias/${id}`);
@@ -77,6 +93,39 @@ export default function ConvocatoriaDetailPage() {
   useEffect(() => {
     fetchConvocatoria();
   }, [fetchConvocatoria]);
+
+  function openEdit() {
+    if (!convocatoria) return;
+    setEditName(convocatoria.name);
+    setEditDesc(convocatoria.description ?? "");
+    setEditGender(convocatoria.gender ?? "MIXED");
+    setEditOpen(true);
+  }
+
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    setEditSaving(true);
+    await fetch(`/api/convocatorias/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: editName, description: editDesc || null, gender: editGender }),
+    });
+    setEditSaving(false);
+    setEditOpen(false);
+    fetchConvocatoria();
+  }
+
+  async function handleDeleteConv() {
+    if (!confirm(`¿Eliminar la convocatoria "${convocatoria?.name}"? Se borrarán todos sus datos.`)) return;
+    await fetch(`/api/convocatorias/${id}`, { method: "DELETE" });
+    router.push("/convocatorias");
+  }
+
+  async function handleDeleteSession(sessionId: string) {
+    if (!confirm("¿Eliminar esta sesión de asistencia? Se borrarán todos sus registros.")) return;
+    await fetch(`/api/convocatorias/${id}/sessions/${sessionId}`, { method: "DELETE" });
+    fetchConvocatoria();
+  }
 
   async function handleClose() {
     if (!confirm("¿Cerrar esta convocatoria? No se podrán registrar más asistencias.")) return;
@@ -114,13 +163,16 @@ export default function ConvocatoriaDetailPage() {
         </Link>
       </div>
 
-      <div className="flex items-start justify-between gap-4">
+      <div className="space-y-4">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 gap-y-2">
             <h1 className="text-2xl font-bold text-gray-900">{convocatoria.name}</h1>
             <Badge variant={convocatoria.status === "ACTIVE" ? "default" : "secondary"}>
               {convocatoria.status === "ACTIVE" ? "Activa" : "Cerrada"}
             </Badge>
+            <Button type="button" variant="secondary" size="sm" onClick={openEdit} className="shrink-0">
+              Editar convocatoria
+            </Button>
           </div>
           {convocatoria.description && (
             <p className="text-gray-500 mt-1">{convocatoria.description}</p>
@@ -130,14 +182,18 @@ export default function ConvocatoriaDetailPage() {
             {format(new Date(convocatoria.startDate), "d MMM yyyy", { locale: es })}
           </p>
         </div>
-        <div className="flex gap-2 shrink-0 flex-wrap">
+        <div className="flex flex-wrap gap-2">
           <Link href={`/convocatorias/${id}/partidos`}>
             <Button variant="outline" className="text-blue-600 border-blue-300 hover:bg-blue-50">
               Partidos
             </Button>
           </Link>
+          <Button type="button" variant="outline" onClick={openEdit}>
+            Editar datos
+          </Button>
           {convocatoria.status === "ACTIVE" && (
             <Button
+              type="button"
               variant="outline"
               onClick={handleClose}
               disabled={closingConv}
@@ -146,6 +202,14 @@ export default function ConvocatoriaDetailPage() {
               Cerrar convocatoria
             </Button>
           )}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleDeleteConv}
+            className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
+          >
+            Eliminar convocatoria
+          </Button>
         </div>
       </div>
 
@@ -273,20 +337,19 @@ export default function ConvocatoriaDetailPage() {
                   <CardContent>
                     <div className="flex flex-wrap gap-3">
                       {sessions.map((s) => (
-                        <Link
-                          key={s.id}
-                          href={`/convocatorias/${id}/asistencia?sessionId=${s.id}`}
-                        >
-                          <div className="border rounded-lg px-4 py-3 hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer">
-                            <p className="text-sm font-medium">
-                              {SESSION_LABELS[s.sessionType]}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-0.5">
-                              {s._count.records} registro
-                              {s._count.records !== 1 ? "s" : ""}
-                            </p>
-                          </div>
-                        </Link>
+                        <div key={s.id} className="flex items-center gap-1">
+                          <Link href={`/convocatorias/${id}/asistencia?sessionId=${s.id}`}>
+                            <div className="border rounded-lg px-4 py-3 hover:bg-blue-50 hover:border-blue-300 transition-colors cursor-pointer">
+                              <p className="text-sm font-medium">{SESSION_LABELS[s.sessionType]}</p>
+                              <p className="text-xs text-gray-400 mt-0.5">{s._count.records} registro{s._count.records !== 1 ? "s" : ""}</p>
+                            </div>
+                          </Link>
+                          <button
+                            onClick={() => handleDeleteSession(s.id)}
+                            className="text-red-400 hover:text-red-600 text-xs leading-none p-1 rounded hover:bg-red-50"
+                            title="Eliminar sesión"
+                          >✕</button>
+                        </div>
                       ))}
                     </div>
                   </CardContent>
@@ -313,6 +376,37 @@ export default function ConvocatoriaDetailPage() {
           onSuccess={fetchConvocatoria}
         />
       )}
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Editar Convocatoria</DialogTitle></DialogHeader>
+          <form onSubmit={handleSaveEdit} className="space-y-4">
+            <div className="space-y-1">
+              <Label>Nombre *</Label>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} required />
+            </div>
+            <div className="space-y-1">
+              <Label>Descripción</Label>
+              <Textarea value={editDesc} onChange={(e) => setEditDesc(e.target.value)} rows={2} />
+            </div>
+            <div className="space-y-2">
+              <Label>Género</Label>
+              <div className="flex gap-2">
+                {GENDER_OPTIONS.map((opt) => (
+                  <button key={opt.value} type="button" onClick={() => setEditGender(opt.value)}
+                    className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${editGender === opt.value ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 hover:border-gray-400"}`}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={editSaving}>{editSaving ? "Guardando..." : "Guardar cambios"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

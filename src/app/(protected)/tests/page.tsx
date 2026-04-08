@@ -25,6 +25,7 @@ export default function TestsPage() {
   const [tests, setTests] = useState<Test[]>([]);
   const [loading, setLoading] = useState(true);
   const [openForm, setOpenForm] = useState(false);
+  const [editTarget, setEditTarget] = useState<Test | null>(null);
   const [name, setName] = useState("");
   const [unit, setUnit] = useState("");
   const [description, setDescription] = useState("");
@@ -41,22 +42,30 @@ export default function TestsPage() {
 
   useEffect(() => { fetchTests(); }, []);
 
-  async function handleCreate(e: React.FormEvent) {
+  function openNew() {
+    setEditTarget(null);
+    setName(""); setUnit(""); setDescription(""); setHigherIsBetter(true); setError("");
+    setOpenForm(true);
+  }
+
+  function openEdit(t: Test) {
+    setEditTarget(t);
+    setName(t.name); setUnit(t.unit); setDescription(t.description ?? ""); setHigherIsBetter(t.higherIsBetter); setError("");
+    setOpenForm(true);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError("");
-    setSaving(true);
-    const res = await fetch("/api/tests", {
-      method: "POST",
+    setError(""); setSaving(true);
+    const method = editTarget ? "PUT" : "POST";
+    const url = editTarget ? `/api/tests/${editTarget.id}` : "/api/tests";
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, unit, description: description || null, higherIsBetter }),
     });
     setSaving(false);
-    if (!res.ok) {
-      const d = await res.json();
-      setError(d.error ?? "Error al crear");
-      return;
-    }
-    setName(""); setUnit(""); setDescription(""); setHigherIsBetter(true);
+    if (!res.ok) { const d = await res.json(); setError(d.error ?? "Error"); return; }
     setOpenForm(false);
     fetchTests();
   }
@@ -74,7 +83,7 @@ export default function TestsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Tests de Evaluación</h1>
           <p className="text-gray-500 mt-1">Fuerza, velocidad, natación y más</p>
         </div>
-        <Button onClick={() => setOpenForm(true)}>+ Nuevo test</Button>
+        <Button onClick={openNew}>+ Nuevo test</Button>
       </div>
 
       {loading ? (
@@ -106,14 +115,10 @@ export default function TestsPage() {
                 <p className="text-xs text-gray-400">Creado por {t.createdBy.name}</p>
                 <div className="flex gap-2 pt-1">
                   <Link href={`/tests/${t.id}`} className="flex-1">
-                    <Button size="sm" className="w-full">Evaluar jugadores</Button>
+                    <Button size="sm" className="w-full">Evaluar</Button>
                   </Link>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-red-500 hover:text-red-700"
-                    onClick={() => handleDelete(t.id, t.name)}
-                  >
+                  <Button size="sm" variant="outline" onClick={() => openEdit(t)}>Editar</Button>
+                  <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => handleDelete(t.id, t.name)}>
                     Eliminar
                   </Button>
                 </div>
@@ -126,9 +131,9 @@ export default function TestsPage() {
       <Dialog open={openForm} onOpenChange={setOpenForm}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Nuevo Test de Evaluación</DialogTitle>
+            <DialogTitle>{editTarget ? "Editar Test" : "Nuevo Test de Evaluación"}</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
             <div className="space-y-1">
               <Label>Nombre del test *</Label>
@@ -167,7 +172,7 @@ export default function TestsPage() {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpenForm(false)}>Cancelar</Button>
-              <Button type="submit" disabled={saving}>{saving ? "Creando..." : "Crear test"}</Button>
+              <Button type="submit" disabled={saving}>{saving ? "Guardando..." : editTarget ? "Guardar cambios" : "Crear test"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

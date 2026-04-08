@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const TeamBarChart = dynamic(
   () => import("./Charts").then((m) => m.TeamBarChart),
@@ -54,6 +55,11 @@ export default function TestDetailPage() {
   const [error, setError] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [playerHistory, setPlayerHistory] = useState<Evaluation[]>([]);
+  const [editEval, setEditEval] = useState<Evaluation | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
 
   const fetchTest = useCallback(async () => {
     const res = await fetch(`/api/tests/${testId}`);
@@ -70,6 +76,34 @@ export default function TestDetailPage() {
   async function fetchPlayerHistory(pid: string) {
     const res = await fetch(`/api/tests/${testId}/evaluations?playerId=${pid}`);
     if (res.ok) setPlayerHistory(await res.json());
+  }
+
+  function openEditEval(ev: Evaluation) {
+    setEditEval(ev);
+    setEditValue(String(ev.value));
+    setEditDate(ev.evalDate.split("T")[0]);
+    setEditNotes(ev.notes ?? "");
+  }
+
+  async function handleSaveEval() {
+    if (!editEval) return;
+    setEditSaving(true);
+    await fetch(`/api/tests/${testId}/evaluations/${editEval.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: Number(editValue), evalDate: editDate, notes: editNotes || null }),
+    });
+    setEditSaving(false);
+    setEditEval(null);
+    fetchTest();
+    if (selectedPlayer) fetchPlayerHistory(selectedPlayer);
+  }
+
+  async function handleDeleteEval(evalId: string) {
+    if (!confirm("¿Eliminar esta evaluación?")) return;
+    await fetch(`/api/tests/${testId}/evaluations/${evalId}`, { method: "DELETE" });
+    fetchTest();
+    if (selectedPlayer) fetchPlayerHistory(selectedPlayer);
   }
 
   async function handleSave() {
@@ -118,8 +152,35 @@ export default function TestDetailPage() {
 
   if (!test) return <div className="text-gray-400">Cargando...</div>;
 
+  const editEvalDialog = (
+    <Dialog open={!!editEval} onOpenChange={(o) => !o && setEditEval(null)}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader><DialogTitle>Editar Evaluación</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label>Fecha</Label>
+            <Input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Marca ({test.unit})</Label>
+            <Input type="number" step="any" value={editValue} onChange={(e) => setEditValue(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Notas</Label>
+            <Input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Observaciones..." />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setEditEval(null)}>Cancelar</Button>
+          <Button onClick={handleSaveEval} disabled={editSaving}>{editSaving ? "Guardando..." : "Guardar"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   return (
     <div className="space-y-6">
+      {editEvalDialog}
       <div className="flex items-center gap-3">
         <Link href="/tests" className="text-gray-400 hover:text-gray-600 text-sm">← Tests</Link>
       </div>
@@ -244,18 +305,21 @@ export default function TestDetailPage() {
                         <th className="text-left px-3 py-2 font-medium text-gray-600">Fecha</th>
                         <th className="text-right px-3 py-2 font-medium text-gray-600">Marca</th>
                         <th className="text-left px-3 py-2 font-medium text-gray-600">Notas</th>
+                        <th className="px-3 py-2" />
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {[...playerHistory].reverse().map((ev) => (
-                        <tr key={ev.id}>
-                          <td className="px-3 py-2 text-gray-700">
-                            {format(new Date(ev.evalDate), "d MMM yyyy", { locale: es })}
-                          </td>
-                          <td className="px-3 py-2 text-right font-semibold text-blue-700">
-                            {ev.value} {test.unit}
-                          </td>
+                        <tr key={ev.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 text-gray-700">{format(new Date(ev.evalDate), "d MMM yyyy", { locale: es })}</td>
+                          <td className="px-3 py-2 text-right font-semibold text-blue-700">{ev.value} {test.unit}</td>
                           <td className="px-3 py-2 text-gray-500 italic text-xs">{ev.notes ?? "—"}</td>
+                          <td className="px-3 py-2">
+                            <div className="flex gap-1">
+                              <button onClick={() => openEditEval(ev)} className="text-xs text-blue-500 hover:text-blue-700 font-medium">Editar</button>
+                              <button onClick={() => handleDeleteEval(ev.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Borrar</button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>

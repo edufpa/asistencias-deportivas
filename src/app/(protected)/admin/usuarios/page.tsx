@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -23,6 +23,15 @@ export default function UsuariosAdminPage() {
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "COACH" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // Edit state
+  const [editTarget, setEditTarget] = useState<User | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editRole, setEditRole] = useState<"ADMIN" | "COACH">("COACH");
+  const [editPassword, setEditPassword] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
 
   async function fetchUsers() {
     setLoading(true);
@@ -62,11 +71,42 @@ export default function UsuariosAdminPage() {
     fetchUsers();
   }
 
+  function openEdit(u: User) {
+    setEditTarget(u);
+    setEditName(u.name);
+    setEditRole(u.role);
+    setEditPassword("");
+    setEditError("");
+    setEditOpen(true);
+  }
+
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editTarget) return;
+    setEditSaving(true); setEditError("");
+    const body: Record<string, string> = { name: editName, role: editRole };
+    if (editPassword) body.newPassword = editPassword;
+    const res = await fetch(`/api/users/${editTarget.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setEditSaving(false);
+    if (res.ok) {
+      setEditOpen(false);
+      setEditTarget(null);
+      fetchUsers();
+    } else {
+      const d = await res.json();
+      setEditError(d.error ?? "Error al guardar");
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">👥 Gestión de Usuarios</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Gestión de Usuarios</h1>
           <p className="text-gray-500 mt-1">Administradores y entrenadores del sistema</p>
         </div>
         <Button onClick={() => { setError(""); setShowForm(true); }}>+ Nuevo usuario</Button>
@@ -94,18 +134,22 @@ export default function UsuariosAdminPage() {
                     Creado: {format(new Date(u.createdAt), "d MMM yyyy", { locale: es })}
                   </p>
                 </div>
-                {u.id !== session?.user?.id && (
-                  <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700"
-                    onClick={() => handleDelete(u.id, u.name)}>
-                    Eliminar
-                  </Button>
-                )}
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => openEdit(u)}>Editar</Button>
+                  {u.id !== session?.user?.id && (
+                    <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700"
+                      onClick={() => handleDelete(u.id, u.name)}>
+                      Eliminar
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
+      {/* Nuevo usuario */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Nuevo Usuario</DialogTitle></DialogHeader>
@@ -128,9 +172,7 @@ export default function UsuariosAdminPage() {
                 {[{ v: "COACH", l: "Entrenador" }, { v: "ADMIN", l: "Administrador" }].map((opt) => (
                   <button key={opt.v} type="button" onClick={() => setForm({ ...form, role: opt.v })}
                     className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      form.role === opt.v
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
+                      form.role === opt.v ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
                     }`}>{opt.l}</button>
                 ))}
               </div>
@@ -141,6 +183,39 @@ export default function UsuariosAdminPage() {
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
             <Button onClick={handleCreate} disabled={saving}>{saving ? "Creando..." : "Crear usuario"}</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Editar usuario */}
+      <Dialog open={editOpen} onOpenChange={(o) => { setEditOpen(o); if (!o) setEditTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Editar Usuario</DialogTitle></DialogHeader>
+          <form onSubmit={handleSaveEdit} className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label>Nombre *</Label>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Rol</Label>
+              <div className="flex gap-2">
+                {[{ v: "COACH" as const, l: "Entrenador" }, { v: "ADMIN" as const, l: "Administrador" }].map((opt) => (
+                  <button key={opt.v} type="button" onClick={() => setEditRole(opt.v)}
+                    className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                      editRole === opt.v ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
+                    }`}>{opt.l}</button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Nueva contraseña <span className="text-gray-400 text-xs">(dejar vacío para no cambiar)</span></Label>
+              <Input type="password" placeholder="Nueva contraseña..." value={editPassword} onChange={(e) => setEditPassword(e.target.value)} />
+            </div>
+            {editError && <p className="text-sm text-red-600">{editError}</p>}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setEditOpen(false); setEditTarget(null); }}>Cancelar</Button>
+              <Button type="submit" disabled={editSaving}>{editSaving ? "Guardando..." : "Guardar cambios"}</Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

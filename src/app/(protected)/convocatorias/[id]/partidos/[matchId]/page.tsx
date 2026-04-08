@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -71,6 +71,7 @@ function EvalBadge({ label, value }: { label: string; value: number | null }) {
 
 export default function MatchDetailPage() {
   const { id: convocatoriaId, matchId } = useParams<{ id: string; matchId: string }>();
+  const router = useRouter();
   const [match, setMatch] = useState<MatchData | null>(null);
   const [stats, setStats] = useState<AllStats>({});
   const [activeQuarter, setActiveQuarter] = useState(1);
@@ -211,9 +212,14 @@ export default function MatchDetailPage() {
             <p className="text-xs text-gray-400 mt-0.5">⏱ {match.quarterDuration} min por cuarto · 4 cuartos</p>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           {saved && <span className="text-green-600 text-sm font-medium">✓ Guardado</span>}
           <Button onClick={handleSaveStats} disabled={saving}>{saving ? "Guardando..." : "Guardar planilla"}</Button>
+          <Button variant="ghost" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={async () => {
+            if (!confirm(`¿Eliminar este partido${match?.opponent ? ` vs ${match.opponent}` : ""}? Se borrarán todas las estadísticas.`)) return;
+            await fetch(`/api/convocatorias/${convocatoriaId}/partidos/${matchId}`, { method: "DELETE" });
+            router.push(`/convocatorias/${convocatoriaId}/partidos`);
+          }}>Eliminar partido</Button>
         </div>
       </div>
 

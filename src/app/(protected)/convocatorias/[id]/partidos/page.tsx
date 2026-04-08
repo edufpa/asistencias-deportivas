@@ -84,6 +84,8 @@ export default function PartidosPage() {
   const [evalFinishing, setEvalFinishing] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [editTarget, setEditTarget] = useState<Match | null>(null);
+  const [openEditForm, setOpenEditForm] = useState(false);
 
   const fetchMatches = useCallback(async () => {
     setLoading(true);
@@ -137,6 +139,55 @@ export default function PartidosPage() {
     fetchMatches();
   }
 
+  function openEditMatch(m: Match) {
+    setEditTarget(m);
+    setMatchDate(m.matchDate.split("T")[0]);
+    setMatchType(m.matchType);
+    setOpponent(m.opponent ?? "");
+    setLocation(m.location ?? "");
+    setHomeScore(m.homeScore !== null ? String(m.homeScore) : "");
+    setAwayScore(m.awayScore !== null ? String(m.awayScore) : "");
+    setQuarterDuration(m.quarterDuration);
+    setNotes("");
+    setEvalOverall(m.evalOverall);
+    setEvalAttack(m.evalAttack);
+    setEvalDefense(m.evalDefense);
+    setEvalFinishing(m.evalFinishing);
+    setOpenEditForm(true);
+  }
+
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editTarget) return;
+    setError(""); setSaving(true);
+    const res = await fetch(`/api/convocatorias/${convocatoriaId}/partidos/${editTarget.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        matchDate, matchType,
+        opponent: opponent || null,
+        location: location || null,
+        homeScore: homeScore !== "" ? Number(homeScore) : null,
+        awayScore: awayScore !== "" ? Number(awayScore) : null,
+        quarterDuration: quarterDuration ?? null,
+        notes: notes || null,
+        evalOverall, evalAttack, evalDefense, evalFinishing,
+      }),
+    });
+    setSaving(false);
+    if (!res.ok) { const d = await res.json(); setError(d.error ?? "Error"); return; }
+    setOpenEditForm(false);
+    setEditTarget(null);
+    resetForm();
+    fetchMatches();
+  }
+
+  async function handleDeleteMatch(matchId: string, opponent: string | null) {
+    if (!confirm(`¿Eliminar el partido${opponent ? ` vs ${opponent}` : ""}? Se borrarán todas las estadísticas.`)) return;
+    await fetch(`/api/convocatorias/${convocatoriaId}/partidos/${matchId}`, { method: "DELETE" });
+    fetchMatches();
+  }
+
   // Get "my team" name from convocatoria name
   const myTeam = convName || "Nosotros";
 
@@ -161,45 +212,50 @@ export default function PartidosPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {matches.map((m) => (
-            <Link key={m.id} href={`/convocatorias/${convocatoriaId}/partidos/${m.id}`}>
-              <Card className="hover:shadow-md transition-shadow cursor-pointer">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="text-base">
-                      {m.opponent ? `vs ${m.opponent}` : "Sin rival definido"}
-                    </CardTitle>
-                    <Badge variant={m.matchType === "OFFICIAL" ? "default" : "secondary"}>
-                      {m.matchType === "OFFICIAL" ? "Oficial" : "Preparación"}
-                    </Badge>
+            <Card key={m.id} className="hover:shadow-md transition-shadow">
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-base">
+                    {m.opponent ? `vs ${m.opponent}` : "Sin rival definido"}
+                  </CardTitle>
+                  <Badge variant={m.matchType === "OFFICIAL" ? "default" : "secondary"}>
+                    {m.matchType === "OFFICIAL" ? "Oficial" : "Preparación"}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-1.5">
+                <p className="text-sm text-gray-600 capitalize">
+                  {format(new Date(m.matchDate), "EEEE d 'de' MMMM yyyy", { locale: es })}
+                </p>
+                {m.location && <p className="text-xs text-gray-400">📍 {m.location}</p>}
+                {(m.homeScore !== null && m.awayScore !== null) && (
+                  <p className="text-lg font-bold text-blue-700">
+                    {myTeam.split(" ")[0]} {m.homeScore} — {m.awayScore} {m.opponent ?? "Rival"}
+                  </p>
+                )}
+                {m.quarterDuration && <p className="text-xs text-gray-400">⏱ {m.quarterDuration} min/cuarto</p>}
+                {(m.evalOverall || m.evalAttack || m.evalDefense || m.evalFinishing) && (
+                  <div className="flex gap-3 pt-0.5">
+                    {m.evalOverall && <span className={`text-xs font-semibold ${EVAL_COLORS[m.evalOverall]}`}>Gral: {m.evalOverall}/4</span>}
+                    {m.evalAttack && <span className={`text-xs font-semibold ${EVAL_COLORS[m.evalAttack]}`}>Atq: {m.evalAttack}/4</span>}
+                    {m.evalDefense && <span className={`text-xs font-semibold ${EVAL_COLORS[m.evalDefense]}`}>Def: {m.evalDefense}/4</span>}
+                    {m.evalFinishing && <span className={`text-xs font-semibold ${EVAL_COLORS[m.evalFinishing]}`}>Def: {m.evalFinishing}/4</span>}
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-1.5">
-                  <p className="text-sm text-gray-600 capitalize">
-                    {format(new Date(m.matchDate), "EEEE d 'de' MMMM yyyy", { locale: es })}
-                  </p>
-                  {m.location && <p className="text-xs text-gray-400">📍 {m.location}</p>}
-                  {(m.homeScore !== null && m.awayScore !== null) && (
-                    <p className="text-lg font-bold text-blue-700">
-                      {myTeam.split(" ")[0]} {m.homeScore} — {m.awayScore} {m.opponent ?? "Rival"}
-                    </p>
-                  )}
-                  {m.quarterDuration && (
-                    <p className="text-xs text-gray-400">⏱ {m.quarterDuration} min/cuarto</p>
-                  )}
-                  {(m.evalOverall || m.evalAttack || m.evalDefense || m.evalFinishing) && (
-                    <div className="flex gap-3 pt-0.5">
-                      {m.evalOverall && <span className={`text-xs font-semibold ${EVAL_COLORS[m.evalOverall]}`}>Gral: {m.evalOverall}/4</span>}
-                      {m.evalAttack && <span className={`text-xs font-semibold ${EVAL_COLORS[m.evalAttack]}`}>Atq: {m.evalAttack}/4</span>}
-                      {m.evalDefense && <span className={`text-xs font-semibold ${EVAL_COLORS[m.evalDefense]}`}>Def: {m.evalDefense}/4</span>}
-                      {m.evalFinishing && <span className={`text-xs font-semibold ${EVAL_COLORS[m.evalFinishing]}`}>Def: {m.evalFinishing}/4</span>}
-                    </div>
-                  )}
-                  <p className="text-xs text-gray-400">
-                    {m._count.playerStats} estadística{m._count.playerStats !== 1 ? "s" : ""} cargada{m._count.playerStats !== 1 ? "s" : ""}
-                  </p>
-                </CardContent>
-              </Card>
-            </Link>
+                )}
+                <p className="text-xs text-gray-400">
+                  {m._count.playerStats} estadística{m._count.playerStats !== 1 ? "s" : ""} cargada{m._count.playerStats !== 1 ? "s" : ""}
+                </p>
+                <div className="flex gap-2 pt-2">
+                  <Link href={`/convocatorias/${convocatoriaId}/partidos/${m.id}`} className="flex-1">
+                    <Button size="sm" variant="outline" className="w-full">Ver detalle</Button>
+                  </Link>
+                  <Button size="sm" variant="outline" onClick={() => openEditMatch(m)}>Editar</Button>
+                  <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700" onClick={() => handleDeleteMatch(m.id, m.opponent)}>
+                    Eliminar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
@@ -313,6 +369,72 @@ export default function PartidosPage() {
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpenForm(false)}>Cancelar</Button>
               <Button type="submit" disabled={saving}>{saving ? "Creando..." : "Crear partido"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog editar partido */}
+      <Dialog open={openEditForm} onOpenChange={(o) => { setOpenEditForm(o); if (!o) { setEditTarget(null); resetForm(); } }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Editar Partido</DialogTitle></DialogHeader>
+          <form onSubmit={handleSaveEdit} className="space-y-5">
+            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Fecha *</Label>
+                <Input type="date" value={matchDate} onChange={(e) => setMatchDate(e.target.value)} required />
+              </div>
+              <div className="space-y-1">
+                <Label>Tipo *</Label>
+                <div className="flex gap-2 pt-1">
+                  {(["OFFICIAL", "PRACTICE"] as const).map((t) => (
+                    <button key={t} type="button" onClick={() => setMatchType(t)}
+                      className={`flex-1 py-1.5 rounded-md border text-xs font-medium transition-colors ${matchType === t ? "bg-blue-600 text-white border-blue-600" : "bg-white border-gray-300 hover:border-blue-400"}`}>
+                      {t === "OFFICIAL" ? "Oficial" : "Preparación"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1"><Label>Rival</Label><Input value={opponent} onChange={(e) => setOpponent(e.target.value)} /></div>
+              <div className="space-y-1"><Label>Sede</Label><Input value={location} onChange={(e) => setLocation(e.target.value)} /></div>
+            </div>
+            <div className="space-y-2">
+              <Label>Marcador</Label>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 space-y-1">
+                  <p className="text-xs text-gray-500 font-medium">{myTeam.split(" ")[0] || "Mi equipo"}</p>
+                  <Input type="number" min="0" value={homeScore} onChange={(e) => setHomeScore(e.target.value)} placeholder="0" className="text-center text-lg font-bold" />
+                </div>
+                <span className="text-2xl font-bold text-gray-400 mt-4">—</span>
+                <div className="flex-1 space-y-1">
+                  <p className="text-xs text-gray-500 font-medium">{opponent || "Rival"}</p>
+                  <Input type="number" min="0" value={awayScore} onChange={(e) => setAwayScore(e.target.value)} placeholder="0" className="text-center text-lg font-bold" />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Duración por cuarto (min)</Label>
+              <Input type="number" min="1" value={quarterDuration ?? ""} onChange={(e) => setQuarterDuration(e.target.value ? Number(e.target.value) : null)} placeholder="6, 7, 9..." />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Calificaciones del equipo</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <EvalSelector value={evalOverall} onChange={setEvalOverall} label="General" />
+                <EvalSelector value={evalAttack} onChange={setEvalAttack} label="Ataque" />
+                <EvalSelector value={evalDefense} onChange={setEvalDefense} label="Defensa" />
+                <EvalSelector value={evalFinishing} onChange={setEvalFinishing} label="Definiciones" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label>Observaciones</Label>
+              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setOpenEditForm(false); setEditTarget(null); resetForm(); }}>Cancelar</Button>
+              <Button type="submit" disabled={saving}>{saving ? "Guardando..." : "Guardar cambios"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
