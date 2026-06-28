@@ -12,7 +12,7 @@ import {
   ROLE_LABELS,
 } from "@/lib/permissions";
 import { ClubLogo } from "@/components/ClubLogo";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   LayoutDashboard,
   Users,
@@ -27,6 +27,7 @@ import {
   LogOut,
   Menu,
   X,
+  KeyRound,
 } from "lucide-react";
 
 const adminLinks = [
@@ -133,6 +134,17 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
           <p className="text-sm font-medium text-white truncate">{session?.user?.name}</p>
           <p className="text-xs text-sky-200/80 truncate">{ROLE_LABELS[role]}</p>
         </div>
+        <Link
+          href="/cuenta"
+          onClick={onNavigate}
+          className={cn(
+            buttonVariants({ variant: "ghost" }),
+            "w-full justify-start gap-3 text-sky-100 hover:text-white hover:bg-white/10"
+          )}
+        >
+          <KeyRound className="h-4 w-4" />
+          Mi cuenta
+        </Link>
         <Button
           variant="ghost"
           className="w-full justify-start gap-3 text-sky-100 hover:text-white hover:bg-white/10"

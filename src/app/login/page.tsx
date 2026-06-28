@@ -44,7 +44,7 @@ export default function LoginPage() {
     }
 
     const result = await signIn("credentials", {
-      email,
+      email: email.trim().toLowerCase(),
       password,
       redirect: false,
     });
@@ -103,7 +103,15 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Contraseña</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password">Contraseña</Label>
+                  <a
+                    href="/olvide-contrasena"
+                    className="text-xs text-primary hover:underline"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </a>
+                </div>
                 <Input
                   id="password"
                   type="password"

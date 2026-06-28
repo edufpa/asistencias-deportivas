@@ -11,29 +11,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "invalid" }, { status: 400 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) {
-    return NextResponse.json({ error: "invalid" }, { status: 401 });
-  }
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return NextResponse.json({ error: "invalid" }, { status: 401 });
+    }
 
-  const match = await bcrypt.compare(password, user.passwordHash);
-  if (!match) {
-    return NextResponse.json({ error: "invalid" }, { status: 401 });
-  }
+    const match = await bcrypt.compare(password, user.passwordHash);
+    if (!match) {
+      return NextResponse.json({ error: "invalid" }, { status: 401 });
+    }
 
-  if (user.accountStatus === "PENDING") {
-    return NextResponse.json({
-      error: "pending",
-      message: "Tu cuenta está pendiente de aprobación por la comisión del club.",
-    });
-  }
+    if (user.accountStatus === "PENDING") {
+      return NextResponse.json({
+        error: "pending",
+        message: "Tu cuenta está pendiente de aprobación por la comisión del club.",
+      });
+    }
 
-  if (user.accountStatus === "REJECTED") {
-    return NextResponse.json({
-      error: "rejected",
-      message: "Tu solicitud de acceso fue rechazada. Contactá a la comisión del club.",
-    });
-  }
+    if (user.accountStatus === "REJECTED") {
+      return NextResponse.json({
+        error: "rejected",
+        message: "Tu solicitud de acceso fue rechazada. Contactá a la comisión del club.",
+      });
+    }
 
-  return NextResponse.json({ ok: true, role: user.role });
+    return NextResponse.json({ ok: true, role: user.role });
+  } catch (error) {
+    console.error("[pre-login] database error:", error);
+    return NextResponse.json({ error: "server" }, { status: 500 });
+  }
 }

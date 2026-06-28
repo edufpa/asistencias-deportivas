@@ -11,8 +11,13 @@ export function proxy(req: NextRequest) {
   const isApiAuth = pathname.startsWith("/api/auth");
   const isPublicRegistration =
     pathname.startsWith("/registro/") || pathname.startsWith("/api/registro/");
+  const isPublicPasswordReset =
+    pathname === "/olvide-contrasena" ||
+    pathname.startsWith("/restablecer-contrasena/") ||
+    pathname === "/api/auth/forgot-password" ||
+    pathname.startsWith("/api/auth/reset-password/");
 
-  if (isApiAuth || isSetupPage || isPublicRegistration) {
+  if (isApiAuth || isSetupPage || isPublicRegistration || isPublicPasswordReset) {
     return NextResponse.next();
   }
 
