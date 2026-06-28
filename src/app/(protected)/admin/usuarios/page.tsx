@@ -143,6 +143,8 @@ function UsuariosAdminContent() {
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState("");
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
+  const [linkingPlayers, setLinkingPlayers] = useState(false);
+  const [linkMessage, setLinkMessage] = useState("");
 
   const playersById = useMemo(
     () => new Map(allPlayers.map((p) => [p.id, p])),
@@ -293,15 +295,42 @@ function UsuariosAdminContent() {
     }
   }
 
+  async function handleSyncPlayerLinks() {
+    setLinkingPlayers(true);
+    setLinkMessage("");
+    const res = await fetch("/api/admin/link-users-players", { method: "POST" });
+    const data = await res.json();
+    setLinkingPlayers(false);
+    if (res.ok) {
+      setLinkMessage(data.message ?? "Vínculos actualizados");
+      fetchUsers();
+    } else {
+      setLinkMessage(data.error ?? "Error al vincular");
+    }
+  }
+
   return (
     <PageShell>
       <PageHeader
         title="Gestión de Usuarios"
         description="Roles del sistema, aprobaciones y vínculos jugador"
         actions={
-          <Button onClick={() => { setError(""); setShowForm(true); }}>+ Nuevo usuario</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              onClick={handleSyncPlayerLinks}
+              disabled={linkingPlayers}
+            >
+              {linkingPlayers ? "Vinculando..." : "Vincular usuarios ↔ jugadores"}
+            </Button>
+            <Button onClick={() => { setError(""); setShowForm(true); }}>+ Nuevo usuario</Button>
+          </div>
         }
       />
+
+      {linkMessage && (
+        <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">{linkMessage}</div>
+      )}
 
       {pendingCount > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

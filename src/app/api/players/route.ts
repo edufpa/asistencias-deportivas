@@ -6,6 +6,7 @@ import { parsePlayerBody } from "@/lib/parsePlayerBody";
 import { getSessionRole, forbidden, getLinkedPlayerIds } from "@/lib/auth-session";
 import { canCreatePlayers, canAccessPlayersList } from "@/lib/permissions";
 import { stripPlayersSensitiveData } from "@/lib/playerSensitiveData";
+import { linkPlayerToUserAccount } from "@/lib/playerUserLink";
 
 export async function GET(req: NextRequest) {
   const ctx = await getSessionRole();
@@ -72,6 +73,8 @@ export async function POST(req: NextRequest) {
   }
 
   const player = await prisma.player.create({ data });
+
+  await linkPlayerToUserAccount(prisma, player, { createUserIfMissing: true });
 
   await log({
     userId: ctx.userId,

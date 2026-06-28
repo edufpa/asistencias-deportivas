@@ -2,10 +2,11 @@
  * Importa jugadores desde el Excel de waterpolo.
  * Uso: node scripts/import-players-xls.js "ruta/al/archivo.xls"
  */
-require("dotenv").config();
+require("dotenv").config({ path: ".env.local" });
 const XLSX = require("xlsx");
 const { PrismaClient } = require("@prisma/client");
 const { PrismaPg } = require("@prisma/adapter-pg");
+const { syncAllPlayerUserLinks } = require("./player-user-link");
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -206,6 +207,11 @@ async function main() {
   }
 
   console.log(`\n✅ Listo: ${created} creados, ${updated} actualizados`);
+
+  const linkResult = await syncAllPlayerUserLinks(prisma, { createUserIfMissing: true });
+  console.log(
+    `\n🔗 Vínculos usuario-jugador: ${linkResult.linked}/${linkResult.players} (creados: ${linkResult.userCreated}, actualizados: ${linkResult.userUpdated})`
+  );
 
   if (skipped.length > 0) {
     console.log(`\n⚠️  Omitidos (${skipped.length}):`);

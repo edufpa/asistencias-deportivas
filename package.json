@@ -11,6 +11,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:seed": "npx ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts",
+    "db:link-users": "node scripts/create-player-users.js",
+    "db:import-players": "node scripts/import-players-xls.js",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate"
   },
