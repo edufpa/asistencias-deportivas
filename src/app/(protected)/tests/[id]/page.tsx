@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { es } from "date-fns/locale";
@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { EvaluationTimeInputs } from "@/components/tests/EvaluationTimeInputs";
@@ -28,10 +27,10 @@ import type { Category, PlayerGender } from "@/lib/player";
 import {
   PageShell,
   PageHeader,
+  PageTabs,
   FilterChip,
   FilterChipGroup,
   FilterPanel,
-  SectionHeading,
   LoadingState,
   DataTableWrap,
   EmptyState,
@@ -88,6 +87,21 @@ type Player = {
 
 type CategoryFilter = Category | "ALL";
 type GenderFilter = PlayerGender | "ALL";
+type TestTab = "registro" | "ranking" | "marcas" | "historial";
+
+const MARKS_PAGE_SIZE = 20;
+
+const TEST_TABS: { id: TestTab; label: string }[] = [
+  { id: "registro", label: "Registro" },
+  { id: "ranking", label: "Ranking" },
+  { id: "marcas", label: "Marcas registradas" },
+  { id: "historial", label: "Historial individual" },
+];
+
+function resolveTestTab(value: string | null): TestTab {
+  if (value === "ranking" || value === "marcas" || value === "historial") return value;
+  return "registro";
+}
 
 function filterPlayersList(
   players: Player[],
@@ -112,6 +126,9 @@ function filterPlayersList(
 
 export default function TestDetailPage() {
   const { id: testId } = useParams<{ id: string }>();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeTab = resolveTestTab(searchParams.get("tab"));
   const [test, setTest] = useState<Test | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
   const [evalDate, setEvalDate] = useState(todayDateOnly());
@@ -136,6 +153,13 @@ export default function TestDetailPage() {
   const [histCategoryFilter, setHistCategoryFilter] = useState<CategoryFilter>("ALL");
   const [histGenderFilter, setHistGenderFilter] = useState<GenderFilter>("ALL");
   const [marksSearch, setMarksSearch] = useState("");
+  const [marksCategoryFilter, setMarksCategoryFilter] = useState<CategoryFilter>("ALL");
+  const [marksDateFrom, setMarksDateFrom] = useState("");
+  const [marksDateTo, setMarksDateTo] = useState("");
+  const [marksPage, setMarksPage] = useState(1);
+  const [rankSearch, setRankSearch] = useState("");
+  const [rankCategoryFilter, setRankCategoryFilter] = useState<CategoryFilter>("ALL");
+  const [rankGenderFilter, setRankGenderFilter] = useState<GenderFilter>("ALL");
 
   const referenceYear = new Date().getFullYear();
 
@@ -149,12 +173,24 @@ export default function TestDetailPage() {
     [players, histCategoryFilter, histGenderFilter, referenceYear]
   );
 
+  const filteredPlayersRank = useMemo(
+    () => filterPlayersList(players, rankSearch, rankCategoryFilter, rankGenderFilter, referenceYear),
+    [players, rankSearch, rankCategoryFilter, rankGenderFilter, referenceYear]
+  );
+
+  const playerById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players]);
+
   useEffect(() => {
-    if (selectedPlayer && !filteredPlayersHist.some((p) => p.id === selectedPlayer)) {
-      setSelectedPlayer(null);
-      setPlayerHistory([]);
-    }
-  }, [filteredPlayersHist, selectedPlayer]);
+    setMarksPage(1);
+  }, [marksSearch, marksCategoryFilter, marksDateFrom, marksDateTo]);
+
+  function setActiveTab(tab: TestTab) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === "registro") params.delete("tab");
+    else params.set("tab", tab);
+    const qs = params.toString();
+    router.replace(qs ? `/tests/${testId}?${qs}` : `/tests/${testId}`, { scroll: false });
+  }
 
   const fetchTest = useCallback(async () => {
     const res = await fetch(`/api/tests/${testId}`);
@@ -167,6 +203,13 @@ export default function TestDetailPage() {
       if (Array.isArray(d)) setPlayers(d);
     });
   }, [fetchTest]);
+
+  useEffect(() => {
+    if (selectedPlayer && !filteredPlayersHist.some((p) => p.id === selectedPlayer)) {
+      setSelectedPlayer(null);
+      setPlayerHistory([]);
+    }
+  }, [filteredPlayersHist, selectedPlayer]);
 
   async function fetchPlayerHistory(pid: string) {
     const res = await fetch(`/api/tests/${testId}/evaluations?playerId=${pid}`);
@@ -283,10 +326,10 @@ export default function TestDetailPage() {
     if (selectedPlayer) fetchPlayerHistory(selectedPlayer);
   }
 
-  // Ranking: récord y última marca por jugador (respeta filtros de registro)
+  // Ranking: récord y última marca por jugador
   const teamRanking = useMemo(() => {
     if (!test) return [];
-    const filteredIds = new Set(filteredPlayers.map((p) => p.id));
+    const filteredIds = new Set(filteredPlayersRank.map((p) => p.id));
     const playerById = new Map(players.map((p) => [p.id, p]));
     const byPlayer = new Map<
       string,
@@ -343,23 +386,44 @@ export default function TestDetailPage() {
       .sort((a, b) =>
         test.higherIsBetter ? b.best.value - a.best.value : a.best.value - b.best.value
       );
-  }, [test, filteredPlayers, players, referenceYear]);
+  }, [test, filteredPlayersRank, players, referenceYear]);
 
-  const allEvaluations = useMemo(() => {
+  const filteredEvaluations = useMemo(() => {
     if (!test) return [];
     const q = marksSearch.trim().toLowerCase();
     return [...test.evaluations]
       .filter((ev) => {
-        if (!q) return true;
-        return formatPlayerName(ev.player).toLowerCase().includes(q);
+        const p = playerById.get(ev.player.id);
+        if (marksCategoryFilter !== "ALL") {
+          if (!p) return false;
+          const cat = getPlayerCategory(getBirthYear(p.birthDate), referenceYear);
+          if (cat !== marksCategoryFilter) return false;
+        }
+        const dateStr = toDateOnlyString(ev.evalDate) ?? ev.evalDate;
+        if (marksDateFrom && dateStr < marksDateFrom) return false;
+        if (marksDateTo && dateStr > marksDateTo) return false;
+        if (q && !formatPlayerName(ev.player).toLowerCase().includes(q)) return false;
+        return true;
       })
       .sort((a, b) => {
         const da = toDateOnlyString(a.evalDate) ?? a.evalDate;
         const db = toDateOnlyString(b.evalDate) ?? b.evalDate;
         if (da !== db) return db.localeCompare(da);
+        const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (ca !== cb) return cb - ca;
         return formatPlayerName(a.player).localeCompare(formatPlayerName(b.player));
       });
-  }, [test, marksSearch]);
+  }, [test, marksSearch, marksCategoryFilter, marksDateFrom, marksDateTo, playerById, referenceYear]);
+
+  const marksTotalPages = Math.max(1, Math.ceil(filteredEvaluations.length / MARKS_PAGE_SIZE));
+  const safeMarksPage = Math.min(marksPage, marksTotalPages);
+  const paginatedEvaluations = filteredEvaluations.slice(
+    (safeMarksPage - 1) * MARKS_PAGE_SIZE,
+    safeMarksPage * MARKS_PAGE_SIZE
+  );
+  const marksRangeStart = filteredEvaluations.length === 0 ? 0 : (safeMarksPage - 1) * MARKS_PAGE_SIZE + 1;
+  const marksRangeEnd = Math.min(safeMarksPage * MARKS_PAGE_SIZE, filteredEvaluations.length);
 
   // Build individual chart
   const individualChartData = playerHistory.map((ev) => ({
@@ -441,8 +505,9 @@ export default function TestDetailPage() {
         }
       />
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Registro de marcas */}
+      <PageTabs tabs={TEST_TABS} value={activeTab} onChange={setActiveTab} />
+
+      {activeTab === "registro" && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Registrar Evaluación</CardTitle>
@@ -502,7 +567,7 @@ export default function TestDetailPage() {
                 Tiempo: <span className="font-mono">min : seg . cs</span> (ej. 1:05.37 = 1 min 5 seg 37 centésimas)
               </p>
             )}
-            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+            <div className="max-h-[28rem] overflow-y-auto space-y-2 pr-1">
               {filteredPlayers.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-6">
                   Ningún jugador coincide con los filtros
@@ -541,22 +606,63 @@ export default function TestDetailPage() {
               ))
               )}
             </div>
-            <Button onClick={handleSave} disabled={saving} className="w-full">
+            <Button onClick={handleSave} disabled={saving} className="w-full sm:w-auto">
               {saving ? "Guardando..." : "Guardar marcas"}
             </Button>
           </CardContent>
         </Card>
+      )}
 
-        {/* Ranking equipo */}
+      {activeTab === "ranking" && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Ranking del Equipo</CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="space-y-4">
+            <FilterPanel className="space-y-3 p-3 bg-muted/40 rounded-lg border">
+              <div className="space-y-1">
+                <Label htmlFor="rankSearch" className="text-xs">Buscar jugador</Label>
+                <Input
+                  id="rankSearch"
+                  placeholder="Nombre o apellido..."
+                  value={rankSearch}
+                  onChange={(e) => setRankSearch(e.target.value)}
+                  className="h-9"
+                />
+              </div>
+              <FilterChipGroup label="Categoría" className="flex-wrap">
+                <FilterChip active={rankCategoryFilter === "ALL"} onClick={() => setRankCategoryFilter("ALL")}>
+                  Todas
+                </FilterChip>
+                {CATEGORIES.map((cat) => (
+                  <FilterChip
+                    key={cat}
+                    active={rankCategoryFilter === cat}
+                    onClick={() => setRankCategoryFilter(cat)}
+                  >
+                    {CATEGORY_LABELS[cat]}
+                  </FilterChip>
+                ))}
+              </FilterChipGroup>
+              <FilterChipGroup label="Género" className="flex-wrap">
+                <FilterChip active={rankGenderFilter === "ALL"} onClick={() => setRankGenderFilter("ALL")}>
+                  Todos
+                </FilterChip>
+                {PLAYER_GENDER_OPTIONS.map((opt) => (
+                  <FilterChip
+                    key={opt.value}
+                    active={rankGenderFilter === opt.value}
+                    onClick={() => setRankGenderFilter(opt.value)}
+                  >
+                    {opt.label}
+                  </FilterChip>
+                ))}
+              </FilterChipGroup>
+            </FilterPanel>
             {teamRanking.length === 0 ? (
               <EmptyState message="Sin datos aún" className="py-8" />
             ) : (
-              <DataTableWrap className="border-0 rounded-none max-h-[420px]">
+              <DataTableWrap>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -593,93 +699,175 @@ export default function TestDetailPage() {
             )}
           </CardContent>
         </Card>
-      </div>
+      )}
 
-      <Separator />
+      {activeTab === "marcas" && (
+        <div className="space-y-4">
+          {test.evaluations.length === 0 ? (
+            <EmptyState message="Aún no hay marcas registradas en este test" />
+          ) : (
+            <>
+              <FilterPanel className="space-y-3 p-4 bg-muted/40 rounded-lg border">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="space-y-1">
+                    <Label htmlFor="marksSearch" className="text-xs">Buscar jugador</Label>
+                    <Input
+                      id="marksSearch"
+                      placeholder="Nombre o apellido..."
+                      value={marksSearch}
+                      onChange={(e) => setMarksSearch(e.target.value)}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="marksDateFrom" className="text-xs">Desde</Label>
+                    <Input
+                      id="marksDateFrom"
+                      type="date"
+                      value={marksDateFrom}
+                      onChange={(e) => setMarksDateFrom(e.target.value)}
+                      className="h-9"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="marksDateTo" className="text-xs">Hasta</Label>
+                    <Input
+                      id="marksDateTo"
+                      type="date"
+                      value={marksDateTo}
+                      onChange={(e) => setMarksDateTo(e.target.value)}
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+                <FilterChipGroup label="Categoría" className="flex-wrap">
+                  <FilterChip active={marksCategoryFilter === "ALL"} onClick={() => setMarksCategoryFilter("ALL")}>
+                    Todas
+                  </FilterChip>
+                  {CATEGORIES.map((cat) => (
+                    <FilterChip
+                      key={cat}
+                      active={marksCategoryFilter === cat}
+                      onClick={() => setMarksCategoryFilter(cat)}
+                    >
+                      {CATEGORY_LABELS[cat]}
+                    </FilterChip>
+                  ))}
+                </FilterChipGroup>
+                {(marksSearch || marksCategoryFilter !== "ALL" || marksDateFrom || marksDateTo) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setMarksSearch("");
+                      setMarksCategoryFilter("ALL");
+                      setMarksDateFrom("");
+                      setMarksDateTo("");
+                    }}
+                  >
+                    Limpiar filtros
+                  </Button>
+                )}
+              </FilterPanel>
 
-      <div className="space-y-4">
-        <SectionHeading
-          title="Marcas registradas"
-          description="Editá o eliminá cualquier marca y su fecha"
-        />
-        {test.evaluations.length === 0 ? (
-          <EmptyState message="Aún no hay marcas registradas en este test" />
-        ) : (
-          <>
-            <div className="max-w-sm">
-              <Label htmlFor="marksSearch" className="text-xs">Buscar jugador</Label>
-              <Input
-                id="marksSearch"
-                placeholder="Nombre o apellido..."
-                value={marksSearch}
-                onChange={(e) => setMarksSearch(e.target.value)}
-                className="h-9 mt-1"
-              />
-            </div>
-            <DataTableWrap className="max-h-[480px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="font-semibold">Jugador</TableHead>
-                    <TableHead className="font-semibold">Fecha</TableHead>
-                    <TableHead className="font-semibold text-right">Marca</TableHead>
-                    <TableHead className="font-semibold">Notas</TableHead>
-                    <TableHead className="font-semibold w-28">Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {allEvaluations.length === 0 ? (
+              <DataTableWrap>
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        Ninguna marca coincide con la búsqueda
-                      </TableCell>
+                      <TableHead className="font-semibold">Jugador</TableHead>
+                      <TableHead className="font-semibold w-16">Cat.</TableHead>
+                      <TableHead className="font-semibold">Fecha</TableHead>
+                      <TableHead className="font-semibold text-right">Marca</TableHead>
+                      <TableHead className="font-semibold">Notas</TableHead>
+                      <TableHead className="font-semibold w-28">Acciones</TableHead>
                     </TableRow>
-                  ) : (
-                    allEvaluations.map((ev) => (
-                      <TableRow key={ev.id}>
-                        <TableCell className="text-sm font-medium">{formatPlayerName(ev.player)}</TableCell>
-                        <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
-                          {formatSessionDate(ev.evalDate, "d MMM yyyy", { locale: es })}
-                        </TableCell>
-                        <TableCell className="text-sm text-right font-bold text-primary font-mono">
-                          {formatTestValue(ev.value, test.unit)}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground italic max-w-[200px] truncate">
-                          {ev.notes ?? "—"}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openEditEval(ev)}>
-                              Editar
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs text-red-600 hover:text-red-700"
-                              onClick={() => handleDeleteEval(ev.id)}
-                            >
-                              Borrar
-                            </Button>
-                          </div>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedEvaluations.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          Ninguna marca coincide con los filtros
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </DataTableWrap>
-            <p className="text-xs text-muted-foreground">
-              {allEvaluations.length} de {test.evaluations.length} marca{test.evaluations.length !== 1 ? "s" : ""}
-            </p>
-          </>
-        )}
-      </div>
+                    ) : (
+                      paginatedEvaluations.map((ev) => {
+                        const p = playerById.get(ev.player.id);
+                        const cat = p
+                          ? getPlayerCategory(getBirthYear(p.birthDate), referenceYear)
+                          : ("OPEN" as Category);
+                        return (
+                          <TableRow key={ev.id}>
+                            <TableCell className="text-sm font-medium">{formatPlayerName(ev.player)}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{CATEGORY_LABELS[cat]}</TableCell>
+                            <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
+                              {formatSessionDate(ev.evalDate, "d MMM yyyy", { locale: es })}
+                            </TableCell>
+                            <TableCell className="text-sm text-right font-bold text-primary font-mono">
+                              {formatTestValue(ev.value, test.unit)}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground italic max-w-[200px] truncate">
+                              {ev.notes ?? "—"}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openEditEval(ev)}>
+                                  Editar
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs text-red-600 hover:text-red-700"
+                                  onClick={() => handleDeleteEval(ev.id)}
+                                >
+                                  Borrar
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </DataTableWrap>
 
-      <Separator />
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <p className="text-xs text-muted-foreground">
+                  {filteredEvaluations.length === 0
+                    ? `0 de ${test.evaluations.length} marcas`
+                    : `${marksRangeStart}–${marksRangeEnd} de ${filteredEvaluations.length} marca${filteredEvaluations.length !== 1 ? "s" : ""} (total ${test.evaluations.length})`}
+                </p>
+                {filteredEvaluations.length > MARKS_PAGE_SIZE && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={safeMarksPage <= 1}
+                      onClick={() => setMarksPage((p) => Math.max(1, p - 1))}
+                    >
+                      Anterior
+                    </Button>
+                    <span className="text-sm text-muted-foreground tabular-nums">
+                      Página {safeMarksPage} de {marksTotalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={safeMarksPage >= marksTotalPages}
+                      onClick={() => setMarksPage((p) => Math.min(marksTotalPages, p + 1))}
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
-      <div className="space-y-4">
-        <SectionHeading title="Historial Individual" />
-
+      {activeTab === "historial" && (
+        <div className="space-y-4">
         <FilterPanel className="space-y-3 p-4 bg-muted/40 rounded-lg border">
           <FilterChipGroup label="Categoría" className="flex-wrap">
             <FilterChip active={histCategoryFilter === "ALL"} onClick={() => setHistCategoryFilter("ALL")}>
@@ -753,7 +941,7 @@ export default function TestDetailPage() {
           </p>
         </FilterPanel>
 
-        {selectedPlayer && (
+        {selectedPlayer ? (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">
@@ -801,8 +989,11 @@ export default function TestDetailPage() {
               )}
             </CardContent>
           </Card>
+        ) : (
+          <EmptyState message="Seleccioná un jugador para ver su evolución" />
         )}
-      </div>
+        </div>
+      )}
     </PageShell>
   );
 }
