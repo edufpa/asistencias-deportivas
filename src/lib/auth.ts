@@ -9,17 +9,33 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: "/login",
   },
   callbacks: {
-    jwt({ token, user }) {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
         token.role = (user as { role?: string }).role;
+        return token;
+      }
+
+      if (token.id) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { id: true, role: true, accountStatus: true },
+        });
+        if (!dbUser || dbUser.accountStatus !== "APPROVED") {
+          delete token.id;
+          delete token.role;
+        } else {
+          token.role = dbUser.role;
+        }
       }
       return token;
     },
     session({ session, token }) {
-      if (token) {
+      if (token?.id) {
         session.user.id = token.id as string;
         (session.user as { role?: string }).role = token.role as string;
+      } else {
+        (session.user as { id?: string }).id = undefined;
       }
       return session;
     },
@@ -45,6 +61,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         );
 
         if (!passwordMatch) return null;
+
+        if (user.accountStatus !== "APPROVED") return null;
 
         return {
           id: user.id,

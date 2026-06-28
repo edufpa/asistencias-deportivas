@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  emptyMatchPlayerStats,
+  hasAnyMatchStat,
+  statsToDbPayload,
+  type MatchPlayerStats,
+} from "@/lib/matchPlayerStats";
 
 export async function PUT(
   req: NextRequest,
@@ -12,48 +18,32 @@ export async function PUT(
   const { matchId } = await params;
   const body = await req.json();
   const { stats } = body;
-  // stats: Array<{ playerId, quarter, goals, assists, recoveries, expulsions, penalties, minutesPlayed? }>
 
   if (!Array.isArray(stats)) {
     return NextResponse.json({ error: "Formato inválido" }, { status: 400 });
   }
 
-  const upserts = stats.map(
-    (s: {
+  await prisma.$transaction(async (tx) => {
+    for (const s of stats as ({
       playerId: string;
       quarter: number;
-      goals?: number;
-      assists?: number;
-      recoveries?: number;
-      expulsions?: number;
-      penalties?: number;
       minutesPlayed?: number | null;
-    }) =>
-      prisma.matchPlayerStat.upsert({
+    } & Partial<MatchPlayerStats>)[]) {
+      const values = statsToDbPayload({ ...emptyMatchPlayerStats(), ...s });
+      if (!hasAnyMatchStat(values)) continue;
+      await tx.matchPlayerStat.upsert({
         where: { matchId_playerId_quarter: { matchId, playerId: s.playerId, quarter: s.quarter } },
-        update: {
-          goals: s.goals ?? 0,
-          assists: s.assists ?? 0,
-          recoveries: s.recoveries ?? 0,
-          expulsions: s.expulsions ?? 0,
-          penalties: s.penalties ?? 0,
-          minutesPlayed: s.minutesPlayed ?? null,
-        },
+        update: { ...values, minutesPlayed: s.minutesPlayed ?? null },
         create: {
           matchId,
           playerId: s.playerId,
           quarter: s.quarter,
-          goals: s.goals ?? 0,
-          assists: s.assists ?? 0,
-          recoveries: s.recoveries ?? 0,
-          expulsions: s.expulsions ?? 0,
-          penalties: s.penalties ?? 0,
+          ...values,
           minutesPlayed: s.minutesPlayed ?? null,
         },
-      })
-  );
-
-  await prisma.$transaction(upserts);
+      });
+    }
+  });
 
   return NextResponse.json({ success: true });
 }

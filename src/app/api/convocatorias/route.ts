@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { log } from "@/lib/logger";
+import { CATEGORIES, type Category } from "@/lib/player";
+
+function parseCategory(value: unknown): Category | null {
+  const category = String(value ?? "");
+  return (CATEGORIES as readonly string[]).includes(category) ? (category as Category) : null;
+}
 
 export async function GET() {
   const session = await auth();
@@ -28,9 +34,13 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const { name, description, gender } = body;
+  const category = parseCategory(body.category);
 
   if (!name) {
     return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 });
+  }
+  if (!category) {
+    return NextResponse.json({ error: "La categoría es requerida" }, { status: 400 });
   }
 
   const convocatoria = await prisma.convocatoria.create({
@@ -38,6 +48,7 @@ export async function POST(req: NextRequest) {
       name,
       description: description ?? null,
       gender: gender ?? "MIXED",
+      category,
       createdBy: session.user?.id ?? "",
     },
   });

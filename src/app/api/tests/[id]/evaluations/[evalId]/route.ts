@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { log } from "@/lib/logger";
+import { formatPlayerName } from "@/lib/player";
+import { parseDateOnlyForDb, isFutureDateOnly } from "@/lib/sessionDate";
+import { serializeEvaluation } from "@/lib/serializeEvaluation";
 
 export async function PUT(
   req: NextRequest,
@@ -13,19 +16,44 @@ export async function PUT(
   const { evalId } = await params;
   const body = await req.json();
 
+  if (body.evalDate !== undefined) {
+    const dateStr = String(body.evalDate);
+    if (isFutureDateOnly(dateStr)) {
+      return NextResponse.json(
+        { error: "La fecha de evaluación no puede ser futura" },
+        { status: 400 }
+      );
+    }
+    const parsed = parseDateOnlyForDb(dateStr);
+    if (!parsed) {
+      return NextResponse.json({ error: "Fecha de evaluación inválida" }, { status: 400 });
+    }
+  }
+
   const evaluation = await prisma.testEvaluation.update({
     where: { id: evalId },
     data: {
       ...(body.value !== undefined && { value: body.value }),
-      ...(body.evalDate !== undefined && { evalDate: new Date(body.evalDate) }),
+      ...(body.evalDate !== undefined && {
+        evalDate: parseDateOnlyForDb(String(body.evalDate))!,
+      }),
       ...(body.notes !== undefined && { notes: body.notes }),
     },
-    include: { player: { select: { firstName: true, lastName: true } }, test: { select: { name: true } } },
+    include: {
+      player: { select: { firstName: true, paternalLastName: true, maternalLastName: true } },
+      test: { select: { name: true } },
+    },
   });
 
-  await log({ userId: session.user?.id ?? "", action: "EVAL_UPDATED", entity: "test", entityId: evalId, detail: `Evaluación de "${evaluation.test.name}" para ${evaluation.player.lastName} actualizada → ${evaluation.value}` });
+  await log({
+    userId: session.user?.id ?? "",
+    action: "EVAL_UPDATED",
+    entity: "test",
+    entityId: evalId,
+    detail: `Evaluación de "${evaluation.test.name}" para ${formatPlayerName(evaluation.player)} actualizada → ${evaluation.value}`,
+  });
 
-  return NextResponse.json(evaluation);
+  return NextResponse.json(serializeEvaluation(evaluation));
 }
 
 export async function DELETE(
@@ -38,11 +66,20 @@ export async function DELETE(
   const { evalId } = await params;
   const evaluation = await prisma.testEvaluation.findUnique({
     where: { id: evalId },
-    include: { player: { select: { firstName: true, lastName: true } }, test: { select: { name: true } } },
+    include: {
+      player: { select: { firstName: true, paternalLastName: true, maternalLastName: true } },
+      test: { select: { name: true } },
+    },
   });
   await prisma.testEvaluation.delete({ where: { id: evalId } });
 
-  await log({ userId: session.user?.id ?? "", action: "EVAL_DELETED", entity: "test", entityId: evalId, detail: `Evaluación de "${evaluation?.test.name}" para ${evaluation?.player.lastName} eliminada` });
+  await log({
+    userId: session.user?.id ?? "",
+    action: "EVAL_DELETED",
+    entity: "test",
+    entityId: evalId,
+    detail: `Evaluación de "${evaluation?.test.name}" para ${evaluation ? formatPlayerName(evaluation.player) : evalId} eliminada`,
+  });
 
   return NextResponse.json({ success: true });
 }

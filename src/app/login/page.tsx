@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ClubLogo } from "@/components/ClubLogo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -21,6 +22,27 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
 
+    const preCheck = await fetch("/api/auth/pre-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    const preData = await preCheck.json();
+
+    if (!preCheck.ok) {
+      setLoading(false);
+      if (preData.error === "pending") {
+        setError(preData.message ?? "Tu cuenta está pendiente de aprobación por la comisión del club.");
+        return;
+      }
+      if (preData.error === "rejected") {
+        setError(preData.message ?? "Tu solicitud de acceso fue rechazada.");
+        return;
+      }
+      setError("Email o contraseña incorrectos");
+      return;
+    }
+
     const result = await signIn("credentials", {
       email,
       password,
@@ -32,18 +54,31 @@ export default function LoginPage() {
     if (result?.error) {
       setError("Email o contraseña incorrectos");
     } else {
-      router.push("/dashboard");
+      const dest = preData.role === "PARENT" ? "/mi-perfil" : "/dashboard";
+      router.push(dest);
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-sky-200/40 blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 w-96 h-96 rounded-full bg-blue-200/40 blur-3xl" />
+      </div>
+
+      <div className="w-full max-w-md relative">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-800">AsistenciasDeportivas</h1>
-          <p className="text-gray-500 mt-2">Sistema de gestión deportiva</p>
+          <div className="inline-flex flex-col items-center gap-4 mb-2 p-6 rounded-2xl bg-gradient-to-b from-[#1e3a8a] to-[#2563eb] shadow-xl shadow-blue-900/20">
+            <ClubLogo size="lg" showText={false} light />
+            <div>
+              <h1 className="text-2xl font-bold text-white">Regatas Lima</h1>
+              <p className="text-sky-200 text-sm mt-1">Asistencias Deportivas</p>
+            </div>
+          </div>
+          <p className="text-muted-foreground mt-4 text-sm">Sistema de gestión deportiva del club</p>
         </div>
-        <Card className="shadow-xl">
+
+        <Card>
           <CardHeader>
             <CardTitle>Iniciar sesión</CardTitle>
             <CardDescription>Ingresá tus credenciales para acceder</CardDescription>

@@ -12,26 +12,32 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { formatPlayerName } from "@/lib/player";
+import {
+  TRAINING_SESSION_OPTIONS,
+  SESSION_TYPE_LABEL,
+  validateTrainingAttendanceRecords,
+  type SessionType,
+} from "@/lib/attendance";
+import {
+  PageShell,
+  PageHeader,
+  FilterChip,
+  FilterChipGroup,
+  LoadingState,
+} from "@/components/layout";
 
 type AttendanceStatus = "ATTENDED" | "ABSENT_JUSTIFIED" | "ABSENT_UNJUSTIFIED" | null;
 
 type PlayerRecord = {
   playerId: string;
   firstName: string;
-  lastName: string;
-  club: string | null;
+  paternalLastName: string;
+  maternalLastName: string;
   status: AttendanceStatus;
   performanceScore: number | null;
   absenceReason: string;
 };
-
-type SessionType = "TURNO_MANANA" | "TURNO_TARDE" | "PESAS";
-
-const SESSION_OPTIONS: { value: SessionType; label: string }[] = [
-  { value: "TURNO_MANANA", label: "Turno Mañana" },
-  { value: "TURNO_TARDE", label: "Turno Tarde" },
-  { value: "PESAS", label: "Pesas" },
-];
 
 const SCORE_LABELS: Record<number, string> = {
   1: "1 — Bajo",
@@ -79,13 +85,13 @@ export function AsistenciaClient() {
     );
     const activePlayers = conv.players.filter((p: { status: string }) => p.status === "ACTIVE");
     setRecords(
-      activePlayers.map((cp: { player: { id: string; firstName: string; lastName: string; club: string | null } }) => {
+      activePlayers.map((cp: { player: { id: string; firstName: string; paternalLastName: string; maternalLastName: string } }) => {
         const existing = recordMap.get(cp.player.id) as { status?: string; performanceScore?: number | null; absenceReason?: string | null } | undefined;
         return {
           playerId: cp.player.id,
           firstName: cp.player.firstName,
-          lastName: cp.player.lastName,
-          club: cp.player.club,
+          paternalLastName: cp.player.paternalLastName,
+          maternalLastName: cp.player.maternalLastName,
           status: (existing?.status as AttendanceStatus) ?? null,
           performanceScore: existing?.performanceScore ?? null,
           absenceReason: existing?.absenceReason ?? "",
@@ -125,13 +131,13 @@ export function AsistenciaClient() {
       existingRecords.map((r: { playerId: string; status: string; performanceScore: number | null; absenceReason: string | null }) => [r.playerId, r])
     );
     setRecords(
-      activePlayers.map((cp: { player: { id: string; firstName: string; lastName: string; club: string | null } }) => {
+      activePlayers.map((cp: { player: { id: string; firstName: string; paternalLastName: string; maternalLastName: string } }) => {
         const existing = recordMap.get(cp.player.id) as { status?: string; performanceScore?: number | null; absenceReason?: string | null } | undefined;
         return {
           playerId: cp.player.id,
           firstName: cp.player.firstName,
-          lastName: cp.player.lastName,
-          club: cp.player.club,
+          paternalLastName: cp.player.paternalLastName,
+          maternalLastName: cp.player.maternalLastName,
           status: (existing?.status as AttendanceStatus) ?? null,
           performanceScore: existing?.performanceScore ?? null,
           absenceReason: existing?.absenceReason ?? "",
@@ -161,7 +167,17 @@ export function AsistenciaClient() {
     if (!sessionId) return;
     setSaving(true);
     setError("");
+    setSaved(false);
+
     const toSave = records.filter((r) => r.status !== null);
+    const toClear = records.filter((r) => r.status === null).map((r) => r.playerId);
+    const scoreError = validateTrainingAttendanceRecords(toSave);
+    if (scoreError) {
+      setSaving(false);
+      setError(scoreError);
+      return;
+    }
+
     const res = await fetch(`/api/convocatorias/${convocatoriaId}/sessions/${sessionId}/records`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -172,6 +188,7 @@ export function AsistenciaClient() {
           performanceScore: r.status === "ATTENDED" ? r.performanceScore : null,
           absenceReason: r.status === "ABSENT_JUSTIFIED" ? r.absenceReason : null,
         })),
+        clearPlayerIds: toClear,
       }),
     });
     setSaving(false);
@@ -182,18 +199,17 @@ export function AsistenciaClient() {
     }
   }
 
-  const currentSessionLabel = SESSION_OPTIONS.find((s) => s.value === sessionType)?.label;
+  const currentSessionLabel = SESSION_TYPE_LABEL[sessionType];
 
-  if (loadingSession) return <div className="text-gray-400">Cargando sesión...</div>;
+  if (loadingSession) return <LoadingState message="Cargando sesión..." />;
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div className="flex items-center gap-3">
-        <Link href={`/convocatorias/${convocatoriaId}`} className="text-gray-400 hover:text-gray-600 text-sm">
-          ← {convocatoriaName}
-        </Link>
-      </div>
-      <h1 className="text-2xl font-bold text-gray-900">Registro de Asistencia</h1>
+    <PageShell width="lg">
+      <Link href={`/convocatorias/${convocatoriaId}`} className="text-sm text-muted-foreground hover:text-foreground">
+        ← {convocatoriaName}
+      </Link>
+
+      <PageHeader title="Registro de Asistencia" />
 
       {step === "config" && (
         <Card className="max-w-md">
@@ -203,19 +219,19 @@ export function AsistenciaClient() {
               <Label htmlFor="sessionDate">Fecha</Label>
               <Input id="sessionDate" type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Tipo de sesión</Label>
-              <div className="flex gap-2 flex-wrap">
-                {SESSION_OPTIONS.map((opt) => (
-                  <button key={opt.value} type="button" onClick={() => setSessionType(opt.value)}
-                    className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      sessionType === opt.value
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
-                    }`}>{opt.label}</button>
-                ))}
-              </div>
-            </div>
+            <FilterChipGroup label="Entrenamiento">
+              {TRAINING_SESSION_OPTIONS.map((opt) => (
+                <FilterChip
+                  key={opt.value}
+                  size="md"
+                  active={sessionType === opt.value}
+                  onClick={() => setSessionType(opt.value)}
+                >
+                  {opt.label}
+                </FilterChip>
+              ))}
+            </FilterChipGroup>
+            <p className="text-xs text-muted-foreground">Incluye Pesas — mismo registro de asistencia y puntaje.</p>
             <Button onClick={handleStartSession} className="w-full">Abrir sesión →</Button>
           </CardContent>
         </Card>
@@ -237,7 +253,7 @@ export function AsistenciaClient() {
           </div>
           {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
           <div className="text-xs text-gray-400 bg-gray-50 rounded-lg px-4 py-2 border">
-            <strong>Instrucciones:</strong> Seleccioná el estado para cada jugador. Si dejás en blanco, significa que el jugador no debía asistir a esta sesión.
+            <strong>Instrucciones:</strong> Marcá asistencia y, si asistió, el puntaje 1–4. Pesas se registra igual que turno mañana o tarde.
           </div>
           <div className="space-y-3">
             {records.map((record) => (
@@ -245,8 +261,7 @@ export function AsistenciaClient() {
                 <CardContent className="py-4">
                   <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                     <div className="sm:w-48 shrink-0">
-                      <p className="font-medium text-gray-900">{record.lastName}, {record.firstName}</p>
-                      {record.club && <p className="text-xs text-gray-400 mt-0.5">{record.club}</p>}
+                      <p className="font-medium text-gray-900">{formatPlayerName(record)}</p>
                     </div>
                     <div className="flex-1 space-y-3">
                       <div className="flex flex-wrap gap-2">
@@ -265,7 +280,7 @@ export function AsistenciaClient() {
                       </div>
                       {record.status === "ATTENDED" && (
                         <div className="flex items-center gap-3">
-                          <Label className="text-sm text-gray-600 shrink-0">Desempeño:</Label>
+                          <Label className="text-sm text-gray-600 shrink-0">Puntaje *:</Label>
                           <div className="flex gap-1">
                             {[1, 2, 3, 4].map((score) => (
                               <button key={score} type="button"
@@ -309,6 +324,6 @@ export function AsistenciaClient() {
           </div>
         </>
       )}
-    </div>
+    </PageShell>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -13,6 +13,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  PageShell,
+  PageHeader,
+  FilterChip,
+  FilterChipGroup,
+  LoadingState,
+  EmptyState,
+} from "@/components/layout";
 
 type Match = {
   id: string;
@@ -65,6 +73,7 @@ function EvalSelector({ value, onChange, label }: { value: number | null; onChan
 
 export default function PartidosPage() {
   const { id: convocatoriaId } = useParams<{ id: string }>();
+  const router = useRouter();
   const [matches, setMatches] = useState<Match[]>([]);
   const [convName, setConvName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -125,18 +134,14 @@ export default function PartidosPage() {
         matchDate, matchType,
         opponent: opponent || null,
         location: location || null,
-        homeScore: homeScore !== "" ? Number(homeScore) : null,
-        awayScore: awayScore !== "" ? Number(awayScore) : null,
-        quarterDuration: quarterDuration ?? null,
-        notes: notes || null,
-        evalOverall, evalAttack, evalDefense, evalFinishing,
       }),
     });
     setSaving(false);
     if (!res.ok) { const d = await res.json(); setError(d.error ?? "Error"); return; }
+    const created = await res.json();
     setOpenForm(false);
     resetForm();
-    fetchMatches();
+    router.push(`/convocatorias/${convocatoriaId}/partidos/${created.id}`);
   }
 
   function openEditMatch(m: Match) {
@@ -192,23 +197,23 @@ export default function PartidosPage() {
   const myTeam = convName || "Nosotros";
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Link href={`/convocatorias/${convocatoriaId}`} className="text-gray-400 hover:text-gray-600 text-sm">
-          ← {convName}
-        </Link>
-      </div>
+    <PageShell>
+      <Link href={`/convocatorias/${convocatoriaId}`} className="text-sm text-muted-foreground hover:text-foreground">
+        ← {convName}
+      </Link>
 
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Partidos</h1>
-          <p className="text-gray-500 mt-1">Oficiales y de preparación</p>
-        </div>
-        <Button onClick={() => { resetForm(); setOpenForm(true); }}>+ Nuevo partido</Button>
-      </div>
+      <PageHeader
+        title="Partidos"
+        description="Oficiales y de preparación"
+        actions={
+          <Button onClick={() => { resetForm(); setOpenForm(true); }}>+ Nuevo partido</Button>
+        }
+      />
 
-      {loading ? <p className="text-gray-400">Cargando...</p> : matches.length === 0 ? (
-        <Card><CardContent className="py-12 text-center text-gray-400">Sin partidos registrados</CardContent></Card>
+      {loading ? (
+        <LoadingState />
+      ) : matches.length === 0 ? (
+        <EmptyState message="Sin partidos registrados" />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           {matches.map((m) => (
@@ -272,17 +277,13 @@ export default function PartidosPage() {
                 <Label>Fecha *</Label>
                 <Input type="date" value={matchDate} onChange={(e) => setMatchDate(e.target.value)} required />
               </div>
-              <div className="space-y-1">
-                <Label>Tipo *</Label>
-                <div className="flex gap-2 pt-1">
-                  {(["OFFICIAL", "PRACTICE"] as const).map((t) => (
-                    <button key={t} type="button" onClick={() => setMatchType(t)}
-                      className={`flex-1 py-1.5 rounded-md border text-xs font-medium transition-colors ${matchType === t ? "bg-blue-600 text-white border-blue-600" : "bg-white border-gray-300 hover:border-blue-400"}`}>
-                      {t === "OFFICIAL" ? "Oficial" : "Preparación"}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <FilterChipGroup label="Tipo *">
+                {(["OFFICIAL", "PRACTICE"] as const).map((t) => (
+                  <FilterChip key={t} active={matchType === t} onClick={() => setMatchType(t)} className="flex-1">
+                    {t === "OFFICIAL" ? "Oficial" : "Preparación"}
+                  </FilterChip>
+                ))}
+              </FilterChipGroup>
             </div>
 
             {/* Rival y sede */}
@@ -295,75 +296,6 @@ export default function PartidosPage() {
                 <Label>Sede/Lugar</Label>
                 <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Piscina, cancha..." />
               </div>
-            </div>
-
-            {/* Score */}
-            <div className="space-y-2">
-              <Label>Marcador</Label>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 space-y-1">
-                  <p className="text-xs text-gray-500 font-medium truncate">{myTeam.split(" ")[0] || "Mi equipo"}</p>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={homeScore}
-                    onChange={(e) => setHomeScore(e.target.value)}
-                    placeholder="0"
-                    className="text-center text-lg font-bold"
-                  />
-                </div>
-                <span className="text-2xl font-bold text-gray-400 mt-4">—</span>
-                <div className="flex-1 space-y-1">
-                  <p className="text-xs text-gray-500 font-medium truncate">{opponent || "Rival"}</p>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={awayScore}
-                    onChange={(e) => setAwayScore(e.target.value)}
-                    placeholder="0"
-                    className="text-center text-lg font-bold"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Duración de cuarto */}
-            <div className="space-y-2">
-              <Label>Duración de cada cuarto (4 cuartos fijos)</Label>
-              <div className="flex gap-2 flex-wrap">
-                {[6, 7, 8, 9, 10].map((min) => (
-                  <button
-                    key={min}
-                    type="button"
-                    onClick={() => setQuarterDuration(quarterDuration === min ? null : min)}
-                    className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                      quarterDuration === min
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
-                    }`}
-                  >
-                    {min} min
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Evaluaciones del equipo */}
-            <div className="space-y-3 rounded-lg border bg-gray-50 p-4">
-              <p className="text-sm font-semibold text-gray-700">Calificación del equipo</p>
-              <div className="grid grid-cols-2 gap-4">
-                <EvalSelector value={evalOverall} onChange={setEvalOverall} label="Rendimiento general" />
-                <EvalSelector value={evalAttack} onChange={setEvalAttack} label="Ataque" />
-                <EvalSelector value={evalDefense} onChange={setEvalDefense} label="Defensa" />
-                <EvalSelector value={evalFinishing} onChange={setEvalFinishing} label="Definiciones" />
-              </div>
-              <p className="text-xs text-gray-400">1=Bajo · 2=Regular · 3=Bueno · 4=Excelente</p>
-            </div>
-
-            {/* Notas */}
-            <div className="space-y-1">
-              <Label>Observaciones</Label>
-              <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="Notas sobre el partido..." />
             </div>
 
             <DialogFooter>
@@ -385,17 +317,13 @@ export default function PartidosPage() {
                 <Label>Fecha *</Label>
                 <Input type="date" value={matchDate} onChange={(e) => setMatchDate(e.target.value)} required />
               </div>
-              <div className="space-y-1">
-                <Label>Tipo *</Label>
-                <div className="flex gap-2 pt-1">
-                  {(["OFFICIAL", "PRACTICE"] as const).map((t) => (
-                    <button key={t} type="button" onClick={() => setMatchType(t)}
-                      className={`flex-1 py-1.5 rounded-md border text-xs font-medium transition-colors ${matchType === t ? "bg-blue-600 text-white border-blue-600" : "bg-white border-gray-300 hover:border-blue-400"}`}>
-                      {t === "OFFICIAL" ? "Oficial" : "Preparación"}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <FilterChipGroup label="Tipo *">
+                {(["OFFICIAL", "PRACTICE"] as const).map((t) => (
+                  <FilterChip key={t} active={matchType === t} onClick={() => setMatchType(t)} className="flex-1">
+                    {t === "OFFICIAL" ? "Oficial" : "Preparación"}
+                  </FilterChip>
+                ))}
+              </FilterChipGroup>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1"><Label>Rival</Label><Input value={opponent} onChange={(e) => setOpponent(e.target.value)} /></div>
@@ -439,6 +367,6 @@ export default function PartidosPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </PageShell>
   );
 }

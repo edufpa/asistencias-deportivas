@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { parseDateOnlyForDb, isFutureDateOnly } from "@/lib/sessionDate";
+import { serializeEvaluations, serializeEvaluation } from "@/lib/serializeEvaluation";
 
 export async function GET(
   req: NextRequest,
@@ -19,13 +21,13 @@ export async function GET(
       ...(playerId ? { playerId } : {}),
     },
     include: {
-      player: { select: { id: true, firstName: true, lastName: true, club: true } },
+      player: { select: { id: true, firstName: true, paternalLastName: true, maternalLastName: true } },
       recordedBy: { select: { name: true } },
     },
-    orderBy: [{ evalDate: "asc" }, { player: { lastName: "asc" } }],
+    orderBy: [{ evalDate: "asc" }, { player: { paternalLastName: "asc" } }],
   });
 
-  return NextResponse.json(evaluations);
+  return NextResponse.json(serializeEvaluations(evaluations));
 }
 
 export async function POST(
@@ -46,13 +48,26 @@ export async function POST(
 
   const recordedById = session.user?.id ?? "";
 
+  for (const e of evaluations) {
+    if (!e.evalDate || isFutureDateOnly(String(e.evalDate))) {
+      return NextResponse.json(
+        { error: "La fecha de evaluación no puede ser futura" },
+        { status: 400 }
+      );
+    }
+    const parsed = parseDateOnlyForDb(String(e.evalDate));
+    if (!parsed) {
+      return NextResponse.json({ error: "Fecha de evaluación inválida" }, { status: 400 });
+    }
+  }
+
   const upserts = evaluations.map((e: { playerId: string; value: number; evalDate: string; notes?: string }) =>
     prisma.testEvaluation.create({
       data: {
         testId,
         playerId: e.playerId,
         value: e.value,
-        evalDate: new Date(e.evalDate),
+        evalDate: parseDateOnlyForDb(String(e.evalDate))!,
         notes: e.notes ?? null,
         recordedById,
       },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatPlayerName } from "@/lib/player";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +20,8 @@ type ConvocatoriaPlayer = {
   player: {
     id: string;
     firstName: string;
-    lastName: string;
+    paternalLastName: string;
+    maternalLastName: string;
   };
 };
 
@@ -73,7 +75,7 @@ export function CutPlayerDialog({
     onOpenChange(false);
   }
 
-  const playerName = `${convocatoriaPlayer.player.lastName}, ${convocatoriaPlayer.player.firstName}`;
+  const playerName = formatPlayerName(convocatoriaPlayer.player);
 
   return (
     <Dialog

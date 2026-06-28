@@ -16,7 +16,7 @@ export async function GET() {
         orderBy: { cutDate: "desc" },
         take: 5,
         include: {
-          player: { select: { firstName: true, lastName: true } },
+          player: { select: { firstName: true, paternalLastName: true, maternalLastName: true } },
           convocatoria: { select: { name: true } },
           cutBy: { select: { name: true } },
         },

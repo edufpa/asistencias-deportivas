@@ -5,13 +5,16 @@ export function proxy(req: NextRequest) {
     req.cookies.has("authjs.session-token") ||
     req.cookies.has("__Secure-authjs.session-token");
 
-  const isLoginPage = req.nextUrl.pathname === "/login";
-  const isSetupPage =
-    req.nextUrl.pathname === "/setup" ||
-    req.nextUrl.pathname === "/api/setup";
-  const isApiAuth = req.nextUrl.pathname.startsWith("/api/auth");
+  const { pathname } = req.nextUrl;
+  const isLoginPage = pathname === "/login";
+  const isSetupPage = pathname === "/setup" || pathname === "/api/setup";
+  const isApiAuth = pathname.startsWith("/api/auth");
+  const isPublicRegistration =
+    pathname.startsWith("/registro/") || pathname.startsWith("/api/registro/");
 
-  if (isApiAuth || isSetupPage) return NextResponse.next();
+  if (isApiAuth || isSetupPage || isPublicRegistration) {
+    return NextResponse.next();
+  }
 
   if (!isLoggedIn && !isLoginPage) {
     return NextResponse.redirect(new URL("/login", req.nextUrl));
@@ -25,5 +28,5 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|logo-rcl.svg).*)"],
 };

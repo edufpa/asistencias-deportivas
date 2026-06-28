@@ -1,0 +1,16 @@
+-- Migración de roles de usuario (ADMIN → SUPER_ADMIN)
+ALTER TABLE users ALTER COLUMN role DROP DEFAULT;
+ALTER TABLE users ALTER COLUMN role TYPE TEXT USING role::TEXT;
+DROP TYPE IF EXISTS "UserRole";
+CREATE TYPE "UserRole" AS ENUM ('SUPER_ADMIN', 'COMISION', 'COACH', 'PARENT');
+UPDATE users SET role = 'SUPER_ADMIN' WHERE role = 'ADMIN' OR LOWER(email) = 'site.eduardo@gmail.com';
+UPDATE users SET role = 'COACH' WHERE role NOT IN ('SUPER_ADMIN', 'COMISION', 'COACH', 'PARENT');
+ALTER TABLE users ALTER COLUMN role TYPE "UserRole" USING role::"UserRole";
+ALTER TABLE users ALTER COLUMN role SET DEFAULT 'COACH';
+
+CREATE TABLE IF NOT EXISTS user_players (
+  id TEXT PRIMARY KEY,
+  "userId" TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "playerId" TEXT NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+  UNIQUE ("userId", "playerId")
+);

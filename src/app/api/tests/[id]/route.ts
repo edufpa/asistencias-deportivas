@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isTestCategory } from "@/lib/testCategory";
+import { serializeEvaluations } from "@/lib/serializeEvaluation";
+import type { TestCategory } from "@prisma/client";
 
 export async function GET(
   _req: NextRequest,
@@ -15,15 +18,18 @@ export async function GET(
     include: {
       createdBy: { select: { name: true } },
       evaluations: {
-        include: { player: { select: { id: true, firstName: true, lastName: true, club: true } } },
-        orderBy: [{ evalDate: "desc" }, { player: { lastName: "asc" } }],
+        include: { player: { select: { id: true, firstName: true, paternalLastName: true, maternalLastName: true } } },
+        orderBy: [{ evalDate: "desc" }, { player: { paternalLastName: "asc" } }],
       },
     },
   });
 
   if (!test) return NextResponse.json({ error: "Test no encontrado" }, { status: 404 });
 
-  return NextResponse.json(test);
+  return NextResponse.json({
+    ...test,
+    evaluations: serializeEvaluations(test.evaluations),
+  });
 }
 
 export async function PUT(
@@ -42,6 +48,9 @@ export async function PUT(
       ...(body.unit && { unit: body.unit }),
       ...(body.description !== undefined && { description: body.description }),
       ...(body.higherIsBetter !== undefined && { higherIsBetter: body.higherIsBetter }),
+      ...(body.category && isTestCategory(body.category)
+        ? { category: body.category as TestCategory }
+        : {}),
     },
   });
 

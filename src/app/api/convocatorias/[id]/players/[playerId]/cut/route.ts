@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { log } from "@/lib/logger";
+import { formatPlayerName } from "@/lib/player";
 
 export async function POST(
   req: NextRequest,
@@ -41,7 +42,7 @@ export async function POST(
     include: { player: true },
   });
 
-  await log({ userId: session.user?.id ?? "", action: "PLAYER_CUT", entity: "convocatoria", entityId: convocatoriaId, detail: `Jugador "${updated.player.lastName}, ${updated.player.firstName}" cortado. Motivo: ${cutReason}` });
+  await log({ userId: session.user?.id ?? "", action: "PLAYER_CUT", entity: "convocatoria", entityId: convocatoriaId, detail: `Jugador "${formatPlayerName(updated.player)}" cortado. Motivo: ${cutReason}` });
 
   return NextResponse.json(updated);
 }

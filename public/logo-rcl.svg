@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 140" fill="none" role="img" aria-label="Regatas Lima Club">
+  <defs>
+    <linearGradient id="shield" x1="60" y1="8" x2="60" y2="132" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1e40af"/>
+      <stop offset="1" stop-color="#1e3a8a"/>
+    </linearGradient>
+    <linearGradient id="inner" x1="60" y1="22" x2="60" y2="118" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7dd3fc"/>
+      <stop offset="1" stop-color="#38bdf8"/>
+    </linearGradient>
+  </defs>
+  <path d="M60 6L108 24V68C108 104 88 124 60 134C32 124 12 104 12 68V24L60 6Z" fill="url(#shield)" stroke="#ffffff" stroke-width="3"/>
+  <path d="M60 18L96 33V66C96 96 80 112 60 120C40 112 24 96 24 66V33L60 18Z" fill="url(#inner)" opacity="0.95"/>
+  <path d="M38 78C48 68 72 68 82 78" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M42 88C52 80 68 80 78 88" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.85"/>
+  <path d="M34 58L86 58" stroke="#1e3a8a" stroke-width="4" stroke-linecap="round"/>
+  <path d="M46 46L74 70" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M74 46L46 70" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round"/>
+  <circle cx="60" cy="57" r="5" fill="#1e3a8a"/>
+  <text x="60" y="108" text-anchor="middle" fill="#1e3a8a" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="700">RCL</text>
+</svg>

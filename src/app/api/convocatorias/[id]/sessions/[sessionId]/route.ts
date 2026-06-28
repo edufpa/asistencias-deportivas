@@ -17,7 +17,7 @@ export async function GET(
       createdBy: { select: { name: true } },
       records: {
         include: { player: true },
-        orderBy: [{ player: { lastName: "asc" } }],
+        orderBy: [{ player: { paternalLastName: "asc" } }],
       },
     },
   });

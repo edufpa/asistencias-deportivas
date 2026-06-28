@@ -7,46 +7,129 @@ datasource db {
 }
 
 model User {
-  id            String   @id @default(cuid())
+  id            String        @id @default(cuid())
   name          String
-  email         String   @unique
+  email         String        @unique
   passwordHash  String
-  role          UserRole @default(COACH)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  role          UserRole      @default(COACH)
+  accountStatus AccountStatus @default(APPROVED)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   convocatorias      Convocatoria[]
+  convocatoriasAsCoach      Convocatoria[] @relation("ConvocatoriaCoach")
+  convocatoriasAsAssistant1 Convocatoria[] @relation("ConvocatoriaAssistant1")
+  convocatoriasAsAssistant2 Convocatoria[] @relation("ConvocatoriaAssistant2")
+  convocatoriasAsDelegate   Convocatoria[] @relation("ConvocatoriaDelegate")
   cortes             ConvocatoriaPlayer[] @relation("CortadoPor")
   attendanceSessions AttendanceSession[]
   testsCreated       Test[]
   testEvaluations    TestEvaluation[]
   matchesCreated     Match[]
   activityLogs       ActivityLog[]
+  linkedPlayers      UserPlayer[]
 
   @@map("users")
 }
 
+enum AccountStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum UserRole {
-  ADMIN
+  SUPER_ADMIN
+  COMISION
   COACH
+  PARENT
+}
+
+model UserPlayer {
+  id       String @id @default(cuid())
+  userId   String
+  playerId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, playerId])
+  @@map("user_players")
 }
 
 model Player {
-  id         String   @id @default(cuid())
-  firstName  String
-  lastName   String
-  documentId String   @unique
-  club       String?
-  birthDate  DateTime
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                   String           @id @default(cuid())
+  firstName            String
+  paternalLastName     String           @map("lastName")
+  maternalLastName     String           @default("")
+  documentType         DocumentType     @default(DNI)
+  documentId           String           @unique
+  birthDate            DateTime
+  gender               Gender           @default(MALE)
+  membershipStatus     MembershipStatus @default(NO_ASOCIADO)
+  membershipCardNumber String?
+  federationCode       String?
+  playerStatus         PlayerStatus     @default(ACTIVE)
+  teamJoinDate         DateTime?        @db.Date
+  homeAddress          String?
+  contactPhone         String?
+  playerEmail          String?
+  fatherName           String?
+  fatherEmail          String?
+  fatherPhone          String?
+  motherName           String?
+  motherEmail          String?
+  motherPhone          String?
+  tutorName            String?
+  tutorEmail           String?
+  tutorPhone           String?
+  photoUrl                 String?
+  documentPhotoFrontUrl    String?
+  documentPhotoBackUrl     String?
+  educationalCenter    String?
+  educationLevel       String?
+  absencePermissionContact String?
+  medicalInfo          String?
+  bloodType            String?
+  allergies            String?
+  epsInsurance         String?
+  observations         String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
 
   convocatorias      ConvocatoriaPlayer[]
   attendanceRecords  AttendanceRecord[]
   testEvaluations    TestEvaluation[]
   matchStats         MatchPlayerStat[]
+  matchRosterEntries MatchRosterPlayer[]
+  linkedUsers        UserPlayer[]
 
   @@map("players")
+}
+
+model ClubRegistrationLink {
+  id        String   @id @default("club")
+  token     String   @unique @default(cuid())
+  updatedAt DateTime @updatedAt
+
+  @@map("club_registration_link")
+}
+
+enum DocumentType {
+  DNI
+  PASAPORTE
+  CARNET_EXTRANJERIA
+}
+
+enum MembershipStatus {
+  ASOCIADO
+  NO_ASOCIADO
+}
+
+enum PlayerStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
 }
 
 enum Gender {
@@ -60,6 +143,7 @@ model Convocatoria {
   name        String
   description String?
   gender      Gender             @default(MIXED)
+  category    Category           @default(SUB16)
   startDate   DateTime           @default(now())
   status      ConvocatoriaStatus @default(ACTIVE)
   createdAt   DateTime           @default(now())
@@ -67,6 +151,15 @@ model Convocatoria {
 
   createdBy   String
   creator     User               @relation(fields: [createdBy], references: [id])
+
+  coachUserId      String?
+  coachUser        User? @relation("ConvocatoriaCoach", fields: [coachUserId], references: [id])
+  assistant1UserId String?
+  assistant1User   User? @relation("ConvocatoriaAssistant1", fields: [assistant1UserId], references: [id])
+  assistant2UserId String?
+  assistant2User   User? @relation("ConvocatoriaAssistant2", fields: [assistant2UserId], references: [id])
+  delegateUserId   String?
+  delegateUser     User? @relation("ConvocatoriaDelegate", fields: [delegateUserId], references: [id])
 
   players     ConvocatoriaPlayer[]
   sessions    AttendanceSession[]
@@ -83,6 +176,7 @@ enum ConvocatoriaStatus {
 model ConvocatoriaPlayer {
   id            String                   @id @default(cuid())
   status        ConvocatoriaPlayerStatus @default(ACTIVE)
+  capNumber     Int?
   cutDate       DateTime?
   cutReason     String?
   joinedAt      DateTime                 @default(now())
@@ -98,6 +192,7 @@ model ConvocatoriaPlayer {
   cutBy   User?   @relation("CortadoPor", fields: [cutById], references: [id])
 
   @@unique([convocatoriaId, playerId])
+  @@unique([convocatoriaId, capNumber])
   @@map("convocatoria_players")
 }
 
@@ -110,10 +205,11 @@ model AttendanceSession {
   id          String      @id @default(cuid())
   sessionDate DateTime    @db.Date
   sessionType SessionType
+  category    Category?
   createdAt   DateTime    @default(now())
 
-  convocatoriaId String
-  convocatoria   Convocatoria @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
+  convocatoriaId String?
+  convocatoria   Convocatoria? @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
 
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id])
@@ -121,7 +217,17 @@ model AttendanceSession {
   records AttendanceRecord[]
 
   @@unique([convocatoriaId, sessionDate, sessionType])
+  @@unique([category, sessionDate, sessionType])
   @@map("attendance_sessions")
+}
+
+enum Category {
+  SUB10
+  SUB12
+  SUB14
+  SUB16
+  SUB18
+  OPEN
 }
 
 enum SessionType {
@@ -157,9 +263,10 @@ enum AttendanceStatus {
 // ─── TESTS DE EVALUACIÓN ──────────────────────────────────────────────────────
 
 model Test {
-  id          String   @id @default(cuid())
+  id          String       @id @default(cuid())
   name        String
-  unit        String   // "kg", "seg", "m", "rep", etc.
+  unit        String       // "kg", "seg", "m", "rep", etc.
+  category    TestCategory @default(NATACION)
   description String?
   higherIsBetter Boolean @default(true) // true = mayor valor = mejor (fuerza); false = menor = mejor (velocidad)
   createdAt   DateTime @default(now())
@@ -171,6 +278,12 @@ model Test {
   evaluations TestEvaluation[]
 
   @@map("tests")
+}
+
+enum TestCategory {
+  FUERZA
+  NATACION
+  ANTROPOMETRIA
 }
 
 model TestEvaluation {
@@ -212,15 +325,26 @@ model Match {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  convocatoriaId String
-  convocatoria   Convocatoria @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
+  convocatoriaId String?
+  convocatoria   Convocatoria? @relation(fields: [convocatoriaId], references: [id], onDelete: Cascade)
 
   createdById String
   createdBy   User   @relation(fields: [createdById], references: [id])
 
   playerStats MatchPlayerStat[]
+  rosterPlayers MatchRosterPlayer[]
 
   @@map("matches")
+}
+
+model MatchRosterPlayer {
+  matchId  String
+  match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  playerId String
+  player   Player @relation(fields: [playerId], references: [id])
+
+  @@id([matchId, playerId])
+  @@map("match_roster_players")
 }
 
 enum MatchType {
@@ -245,16 +369,21 @@ model ActivityLog {
 }
 
 model MatchPlayerStat {
-  id          String @id @default(cuid())
-  quarter     Int
-  goals       Int    @default(0)
-  assists     Int    @default(0)
-  recoveries  Int    @default(0)
-  expulsions  Int    @default(0)
-  penalties   Int    @default(0)
-  minutesPlayed Int? 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                  String @id @default(cuid())
+  quarter             Int
+  goals               Int    @default(0)
+  missedShots         Int    @default(0)
+  exclusionsGenerated Int    @default(0)
+  exclusionsAgainst   Int    @default(0)
+  penaltiesGenerated  Int    @default(0)
+  penaltiesAgainst    Int    @default(0)
+  assists             Int    @default(0)
+  badPasses           Int    @default(0)
+  counterattacks      Int    @default(0)
+  blocksSteals        Int    @default(0)
+  minutesPlayed       Int?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   matchId  String
   match    Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)

@@ -22,8 +22,8 @@ export async function GET(
       },
       createdBy: { select: { name: true } },
       playerStats: {
-        include: { player: { select: { id: true, firstName: true, lastName: true, club: true } } },
-        orderBy: [{ quarter: "asc" }, { player: { lastName: "asc" } }],
+        include: { player: { select: { id: true, firstName: true, paternalLastName: true, maternalLastName: true } } },
+        orderBy: [{ quarter: "asc" }, { player: { paternalLastName: "asc" } }],
       },
     },
   });

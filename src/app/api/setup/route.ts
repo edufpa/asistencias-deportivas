@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       name,
       email,
       passwordHash: hash,
-      role: "ADMIN",
+      role: "SUPER_ADMIN",
     },
     select: { id: true, name: true, email: true, role: true },
   });

@@ -13,6 +13,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { cn } from "@/lib/utils";
+import { filterChipClass } from "@/components/layout";
+import { CATEGORIES, CATEGORY_LABELS, type Category } from "@/lib/player";
 
 interface Props {
   open: boolean;
@@ -30,6 +33,7 @@ export function ConvocatoriaFormDialog({ open, onOpenChange, onSuccess }: Props)
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [gender, setGender] = useState("MIXED");
+  const [category, setCategory] = useState<Category>("SUB16");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -41,7 +45,7 @@ export function ConvocatoriaFormDialog({ open, onOpenChange, onSuccess }: Props)
     const res = await fetch("/api/convocatorias", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, description: description || null, gender }),
+      body: JSON.stringify({ name, description: description || null, gender, category }),
     });
 
     setLoading(false);
@@ -55,6 +59,7 @@ export function ConvocatoriaFormDialog({ open, onOpenChange, onSuccess }: Props)
     setName("");
     setDescription("");
     setGender("MIXED");
+    setCategory("SUB16");
     onSuccess();
     onOpenChange(false);
   }
@@ -82,15 +87,33 @@ export function ConvocatoriaFormDialog({ open, onOpenChange, onSuccess }: Props)
             />
           </div>
           <div className="space-y-2">
+            <Label>Categoría *</Label>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategory(cat)}
+                  className={filterChipClass(category === cat, "md")}
+                >
+                  {CATEGORY_LABELS[cat]}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Al agregar jugadores se incluirán también las 2 categorías inferiores (ej. Sub 16 → Sub 14 y Sub 12).
+            </p>
+          </div>
+          <div className="space-y-2">
             <Label>Género</Label>
             <div className="flex gap-2">
               {GENDER_OPTIONS.map((opt) => (
-                <button key={opt.value} type="button" onClick={() => setGender(opt.value)}
-                  className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${
-                    gender === opt.value
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
-                  }`}>
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setGender(opt.value)}
+                  className={cn("flex-1", filterChipClass(gender === opt.value, "md"))}
+                >
                   {opt.label}
                 </button>
               ))}

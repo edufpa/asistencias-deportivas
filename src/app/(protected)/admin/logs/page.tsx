@@ -1,14 +1,21 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useSession } from "next-auth/react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { RoleGate } from "@/components/RoleGate";
+import { canViewAdminLogs } from "@/lib/permissions";
+import {
+  PageShell,
+  PageHeader,
+  FilterPanel,
+  LoadingState,
+  EmptyState,
+} from "@/components/layout";
 
 type Log = { id: string; action: string; entity: string; entityId: string | null; detail: string | null; createdAt: string; user: { name: string; email: string } };
 type User = { id: string; name: string; email: string };
@@ -23,6 +30,7 @@ const ACTION_COLOR: Record<string, string> = {
   ATTENDANCE_SAVED: "bg-teal-100 text-teal-800",
   USER_CREATED: "bg-indigo-100 text-indigo-800",
   USER_DELETED: "bg-red-100 text-red-800",
+  USER_UPDATED: "bg-indigo-100 text-indigo-800",
 };
 
 const ACTION_LABEL: Record<string, string> = {
@@ -35,12 +43,10 @@ const ACTION_LABEL: Record<string, string> = {
   ATTENDANCE_SAVED: "Asistencia guardada",
   USER_CREATED: "Usuario creado",
   USER_DELETED: "Usuario eliminado",
+  USER_UPDATED: "Usuario editado",
 };
 
-export default function LogsAdminPage() {
-  const { data: session } = useSession();
-  const role = (session?.user as { role?: string })?.role;
-
+function LogsAdminContent() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,10 +56,8 @@ export default function LogsAdminPage() {
   const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
-    if (role === "ADMIN") {
-      fetch("/api/users").then((r) => r.json()).then((d) => { if (Array.isArray(d)) setUsers(d); });
-    }
-  }, [role]);
+    fetch("/api/users").then((r) => r.json()).then((d) => { if (Array.isArray(d)) setUsers(d); });
+  }, []);
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -67,23 +71,17 @@ export default function LogsAdminPage() {
     setLoading(false);
   }, [entity, userId, dateFrom, dateTo]);
 
-  useEffect(() => { if (role === "ADMIN") fetchLogs(); }, [fetchLogs, role]);
-
-  if (role !== "ADMIN") {
-    return <div className="text-red-600 py-8 text-center">Acceso restringido — solo administradores</div>;
-  }
+  useEffect(() => { fetchLogs(); }, [fetchLogs]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">📋 Registro de Actividad</h1>
-        <p className="text-gray-500 mt-1">Historial de cambios y acciones realizadas en el sistema</p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="📋 Registro de Actividad"
+        description="Historial de cambios y acciones realizadas en el sistema"
+      />
 
-      {/* Filtros */}
-      <Card>
-        <CardContent className="pt-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+      <FilterPanel>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end w-full">
             <div className="space-y-1">
               <Label>Módulo</Label>
               <select value={entity} onChange={(e) => setEntity(e.target.value)}
@@ -122,18 +120,18 @@ export default function LogsAdminPage() {
               </Button>
             )}
           </div>
-        </CardContent>
-      </Card>
+      </FilterPanel>
 
-      {/* Lista de logs */}
       <div className="space-y-2">
         {loading ? (
-          <div className="text-center text-gray-400 py-10">Cargando logs...</div>
+          <div className="py-10 text-center">
+            <LoadingState message="Cargando logs..." />
+          </div>
         ) : logs.length === 0 ? (
-          <div className="text-center text-gray-400 py-10 border rounded-lg">No hay registros para los filtros seleccionados</div>
+          <EmptyState message="No hay registros para los filtros seleccionados" />
         ) : (
           <>
-            <p className="text-xs text-gray-400">{logs.length} registro{logs.length !== 1 ? "s" : ""}</p>
+            <p className="text-xs text-muted-foreground">{logs.length} registro{logs.length !== 1 ? "s" : ""}</p>
             {logs.map((l) => (
               <div key={l.id} className="flex items-start gap-3 px-4 py-3 bg-white border rounded-lg hover:shadow-sm transition-shadow">
                 <div className="shrink-0 mt-0.5">
@@ -143,8 +141,8 @@ export default function LogsAdminPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-800">{l.detail ?? "—"}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    <span className="font-medium text-gray-600">{l.user.name}</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    <span className="font-medium text-foreground">{l.user.name}</span>
                     {" · "}
                     {format(new Date(l.createdAt), "d MMM yyyy HH:mm", { locale: es })}
                   </p>
@@ -155,6 +153,14 @@ export default function LogsAdminPage() {
           </>
         )}
       </div>
-    </div>
+    </PageShell>
+  );
+}
+
+export default function LogsAdminPage() {
+  return (
+    <RoleGate allow={canViewAdminLogs} message="Acceso restringido — solo administradores y comisión.">
+      <LogsAdminContent />
+    </RoleGate>
   );
 }

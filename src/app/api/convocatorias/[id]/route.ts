@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { log } from "@/lib/logger";
+import { CATEGORIES, type Category } from "@/lib/player";
+import { resolveStaffUserId } from "@/lib/convocatoriaStaff";
+
+const staffUserSelect = { id: true, name: true, email: true, role: true } as const;
+
+function parseCategory(value: unknown): Category | null {
+  const category = String(value ?? "");
+  return (CATEGORIES as readonly string[]).includes(category) ? (category as Category) : null;
+}
 
 export async function GET(
   _req: NextRequest,
@@ -16,12 +25,16 @@ export async function GET(
     where: { id },
     include: {
       creator: { select: { id: true, name: true } },
+      coachUser: { select: staffUserSelect },
+      assistant1User: { select: staffUserSelect },
+      assistant2User: { select: staffUserSelect },
+      delegateUser: { select: staffUserSelect },
       players: {
         include: {
           player: true,
           cutBy: { select: { name: true } },
         },
-        orderBy: { joinedAt: "asc" },
+        orderBy: [{ capNumber: "asc" }, { joinedAt: "asc" }],
       },
       sessions: {
         orderBy: [{ sessionDate: "desc" }, { sessionType: "asc" }],
@@ -48,6 +61,27 @@ export async function PUT(
   const { id } = await params;
   const body = await req.json();
   const { name, description, gender, status } = body;
+  const category = body.category !== undefined ? parseCategory(body.category) : undefined;
+
+  if (body.category !== undefined && !category) {
+    return NextResponse.json({ error: "Categoría inválida" }, { status: 400 });
+  }
+
+  const staffUpdates: Record<string, string | null> = {};
+  for (const key of [
+    "coachUserId",
+    "assistant1UserId",
+    "assistant2UserId",
+    "delegateUserId",
+  ] as const) {
+    if (body[key] !== undefined) {
+      const resolved = await resolveStaffUserId(body[key]);
+      if ("error" in resolved) {
+        return NextResponse.json({ error: resolved.error }, { status: 400 });
+      }
+      staffUpdates[key] = resolved.id;
+    }
+  }
 
   const convocatoria = await prisma.convocatoria.update({
     where: { id },
@@ -55,7 +89,15 @@ export async function PUT(
       ...(name && { name }),
       ...(description !== undefined && { description }),
       ...(gender && { gender }),
+      ...(category && { category }),
       ...(status && { status }),
+      ...staffUpdates,
+    },
+    include: {
+      coachUser: { select: staffUserSelect },
+      assistant1User: { select: staffUserSelect },
+      assistant2User: { select: staffUserSelect },
+      delegateUser: { select: staffUserSelect },
     },
   });
 
