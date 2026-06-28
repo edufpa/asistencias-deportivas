@@ -1,5 +1,17 @@
 export const MIN_PASSWORD_LENGTH = 6;
 
+export function normalizeEmail(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function validateEmail(value: string): string | null {
+  const email = normalizeEmail(value);
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return "Ingresá un correo válido";
+  }
+  return null;
+}
+
 export function validateNewPassword(
   newPassword: string,
   confirm: string

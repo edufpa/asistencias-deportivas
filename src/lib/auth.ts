@@ -20,13 +20,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
-          select: { id: true, role: true, accountStatus: true },
+          select: { id: true, role: true, accountStatus: true, email: true, name: true },
         });
         if (!dbUser || dbUser.accountStatus !== "APPROVED") {
           delete token.id;
           delete token.role;
+          delete token.email;
+          delete token.name;
         } else {
           token.role = dbUser.role;
+          token.email = dbUser.email;
+          token.name = dbUser.name;
         }
       }
       return token;
@@ -35,6 +39,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token?.id) {
         session.user.id = token.id as string;
         (session.user as { role?: string }).role = token.role as string;
+        session.user.email = (token.email as string) ?? session.user.email;
+        session.user.name = (token.name as string) ?? session.user.name;
       } else {
         (session.user as { id?: string }).id = undefined;
       }
