@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { RoleGate } from "@/components/RoleGate";
 import { canViewAdminLogs } from "@/lib/permissions";
+import { getActionColor, getActionLabel } from "@/lib/activityLogLabels";
 import {
   PageShell,
   PageHeader,
@@ -19,32 +20,6 @@ import {
 
 type Log = { id: string; action: string; entity: string; entityId: string | null; detail: string | null; createdAt: string; user: { name: string; email: string } };
 type User = { id: string; name: string; email: string };
-
-const ACTION_COLOR: Record<string, string> = {
-  PLAYER_CREATED: "bg-green-100 text-green-800",
-  PLAYER_UPDATED: "bg-blue-100 text-blue-800",
-  PLAYER_DELETED: "bg-red-100 text-red-800",
-  PLAYER_CUT: "bg-orange-100 text-orange-800",
-  CONV_CREATED: "bg-purple-100 text-purple-800",
-  MATCH_CREATED: "bg-yellow-100 text-yellow-800",
-  ATTENDANCE_SAVED: "bg-teal-100 text-teal-800",
-  USER_CREATED: "bg-indigo-100 text-indigo-800",
-  USER_DELETED: "bg-red-100 text-red-800",
-  USER_UPDATED: "bg-indigo-100 text-indigo-800",
-};
-
-const ACTION_LABEL: Record<string, string> = {
-  PLAYER_CREATED: "Jugador creado",
-  PLAYER_UPDATED: "Jugador editado",
-  PLAYER_DELETED: "Jugador eliminado",
-  PLAYER_CUT: "Corte",
-  CONV_CREATED: "Convocatoria creada",
-  MATCH_CREATED: "Partido creado",
-  ATTENDANCE_SAVED: "Asistencia guardada",
-  USER_CREATED: "Usuario creado",
-  USER_DELETED: "Usuario eliminado",
-  USER_UPDATED: "Usuario editado",
-};
 
 function LogsAdminContent() {
   const [logs, setLogs] = useState<Log[]>([]);
@@ -135,8 +110,8 @@ function LogsAdminContent() {
             {logs.map((l) => (
               <div key={l.id} className="flex items-start gap-3 px-4 py-3 bg-white border rounded-lg hover:shadow-sm transition-shadow">
                 <div className="shrink-0 mt-0.5">
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-md ${ACTION_COLOR[l.action] ?? "bg-gray-100 text-gray-700"}`}>
-                    {ACTION_LABEL[l.action] ?? l.action}
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-md ${getActionColor(l.action)}`}>
+                    {getActionLabel(l.action)}
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">

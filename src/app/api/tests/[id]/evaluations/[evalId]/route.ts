@@ -3,7 +3,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { log } from "@/lib/logger";
 import { formatPlayerName } from "@/lib/player";
-import { parseDateOnlyForDb, isFutureDateOnly } from "@/lib/sessionDate";
+import { formatTestValue } from "@/lib/testTimeFormat";
+import { parseDateOnlyForDb, isFutureDateOnly, toDateOnlyString } from "@/lib/sessionDate";
 import { serializeEvaluation } from "@/lib/serializeEvaluation";
 
 export async function PUT(
@@ -13,8 +14,19 @@ export async function PUT(
   const session = await auth();
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const { evalId } = await params;
+  const { id: testId, evalId } = await params;
   const body = await req.json();
+
+  const existing = await prisma.testEvaluation.findUnique({
+    where: { id: evalId },
+    include: {
+      player: { select: { firstName: true, paternalLastName: true, maternalLastName: true } },
+      test: { select: { name: true, unit: true } },
+    },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Evaluación no encontrada" }, { status: 404 });
+  }
 
   if (body.evalDate !== undefined) {
     const dateStr = String(body.evalDate);
@@ -41,7 +53,7 @@ export async function PUT(
     },
     include: {
       player: { select: { firstName: true, paternalLastName: true, maternalLastName: true } },
-      test: { select: { name: true } },
+      test: { select: { name: true, unit: true } },
     },
   });
 
@@ -49,8 +61,18 @@ export async function PUT(
     userId: session.user?.id ?? "",
     action: "EVAL_UPDATED",
     entity: "test",
-    entityId: evalId,
-    detail: `Evaluación de "${evaluation.test.name}" para ${formatPlayerName(evaluation.player)} actualizada → ${evaluation.value}`,
+    entityId: testId,
+    detail: [
+      `"${evaluation.test.name}" — ${formatPlayerName(evaluation.player)}:`,
+      body.value !== undefined
+        ? `marca ${formatTestValue(existing.value, existing.test.unit)} → ${formatTestValue(evaluation.value, evaluation.test.unit)}`
+        : null,
+      body.evalDate !== undefined
+        ? `fecha ${toDateOnlyString(existing.evalDate) ?? "?"} → ${toDateOnlyString(evaluation.evalDate) ?? "?"}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" · "),
   });
 
   return NextResponse.json(serializeEvaluation(evaluation));
@@ -63,7 +85,7 @@ export async function DELETE(
   const session = await auth();
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const { evalId } = await params;
+  const { id: testId, evalId } = await params;
   const evaluation = await prisma.testEvaluation.findUnique({
     where: { id: evalId },
     include: {
@@ -77,7 +99,7 @@ export async function DELETE(
     userId: session.user?.id ?? "",
     action: "EVAL_DELETED",
     entity: "test",
-    entityId: evalId,
+    entityId: testId,
     detail: `Evaluación de "${evaluation?.test.name}" para ${evaluation ? formatPlayerName(evaluation.player) : evalId} eliminada`,
   });
 

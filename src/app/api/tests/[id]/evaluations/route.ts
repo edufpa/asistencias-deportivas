@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { parseDateOnlyForDb, isFutureDateOnly } from "@/lib/sessionDate";
+import { log } from "@/lib/logger";
+import { formatPlayerName } from "@/lib/player";
+import { parseDateOnlyForDb, isFutureDateOnly, toDateOnlyString } from "@/lib/sessionDate";
 import { serializeEvaluations, serializeEvaluation } from "@/lib/serializeEvaluation";
 
 export async function GET(
@@ -75,6 +77,35 @@ export async function POST(
   );
 
   await prisma.$transaction(upserts);
+
+  const test = await prisma.test.findUnique({
+    where: { id: testId },
+    select: { name: true, unit: true },
+  });
+
+  if (test && recordedById) {
+    const playerIds = [...new Set(evaluations.map((e: { playerId: string }) => e.playerId))];
+    const players = await prisma.player.findMany({
+      where: { id: { in: playerIds } },
+      select: { id: true, firstName: true, paternalLastName: true, maternalLastName: true },
+    });
+    const playerMap = new Map(players.map((p) => [p.id, p]));
+    const dateLabel = toDateOnlyString(String(evaluations[0]?.evalDate)) ?? "";
+
+    await log({
+      userId: recordedById,
+      action: "EVAL_CREATED",
+      entity: "test",
+      entityId: testId,
+      detail: `"${test.name}" — ${evaluations.length} marca(s) registrada(s) el ${dateLabel} (${playerIds
+        .slice(0, 3)
+        .map((id) => {
+          const p = playerMap.get(id);
+          return p ? formatPlayerName(p) : id;
+        })
+        .join(", ")}${playerIds.length > 3 ? "…" : ""})`,
+    });
+  }
 
   return NextResponse.json({ saved: evaluations.length }, { status: 201 });
 }

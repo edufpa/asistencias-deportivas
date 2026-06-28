@@ -44,6 +44,7 @@ const navIcons: Record<string, ComponentType<{ className?: string }>> = {
   "/tests": FlaskConical,
   "/reportes": BarChart3,
   "/reportes/partidos": Swords,
+  "/admin/logs": ScrollText,
 };
 
 function NavItem({

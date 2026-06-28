@@ -114,5 +114,8 @@ export function navLinksForRole(role: AppRole): NavLink[] {
     links.push({ href: "/reportes", label: "Reporte Asistencia" });
     links.push({ href: "/reportes/partidos", label: "Partidos" });
   }
+  if (canViewAdminLogs(role)) {
+    links.push({ href: "/admin/logs", label: "Actividad" });
+  }
   return links;
 }

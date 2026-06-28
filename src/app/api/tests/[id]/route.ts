@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { log } from "@/lib/logger";
 import { isTestCategory } from "@/lib/testCategory";
 import { serializeEvaluations } from "@/lib/serializeEvaluation";
 import type { TestCategory } from "@prisma/client";
@@ -54,6 +55,14 @@ export async function PUT(
     },
   });
 
+  await log({
+    userId: session.user?.id ?? "",
+    action: "TEST_UPDATED",
+    entity: "test",
+    entityId: id,
+    detail: `Test "${test.name}" actualizado`,
+  });
+
   return NextResponse.json(test);
 }
 
@@ -65,7 +74,16 @@ export async function DELETE(
   if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id } = await params;
+  const existing = await prisma.test.findUnique({ where: { id }, select: { name: true } });
   await prisma.test.delete({ where: { id } });
+
+  await log({
+    userId: session.user?.id ?? "",
+    action: "TEST_DELETED",
+    entity: "test",
+    entityId: id,
+    detail: `Test "${existing?.name ?? id}" eliminado`,
+  });
 
   return NextResponse.json({ success: true });
 }

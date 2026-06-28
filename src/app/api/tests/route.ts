@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { log } from "@/lib/logger";
 import { isTestCategory } from "@/lib/testCategory";
 import type { TestCategory } from "@prisma/client";
 
@@ -57,6 +58,14 @@ export async function POST(req: NextRequest) {
       higherIsBetter: higherIsBetter !== false,
       createdById: session.user?.id ?? "",
     },
+  });
+
+  await log({
+    userId: session.user?.id ?? "",
+    action: "TEST_CREATED",
+    entity: "test",
+    entityId: test.id,
+    detail: `Test "${name}" (${unit}) creado`,
   });
 
   return NextResponse.json(test, { status: 201 });

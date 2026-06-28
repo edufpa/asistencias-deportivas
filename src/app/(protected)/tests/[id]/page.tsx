@@ -135,6 +135,7 @@ export default function TestDetailPage() {
   const [genderFilter, setGenderFilter] = useState<GenderFilter>("ALL");
   const [histCategoryFilter, setHistCategoryFilter] = useState<CategoryFilter>("ALL");
   const [histGenderFilter, setHistGenderFilter] = useState<GenderFilter>("ALL");
+  const [marksSearch, setMarksSearch] = useState("");
 
   const referenceYear = new Date().getFullYear();
 
@@ -213,12 +214,17 @@ export default function TestDetailPage() {
       return;
     }
     setEditSaving(true);
-    await fetch(`/api/tests/${testId}/evaluations/${editEval.id}`, {
+    const res = await fetch(`/api/tests/${testId}/evaluations/${editEval.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ value: valueNum, evalDate: editDate, notes: editNotes || null }),
     });
     setEditSaving(false);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setEvalFormError(data.error ?? "Error al guardar la evaluación");
+      return;
+    }
     setEditEval(null);
     fetchTest();
     if (selectedPlayer) fetchPlayerHistory(selectedPlayer);
@@ -338,6 +344,22 @@ export default function TestDetailPage() {
         test.higherIsBetter ? b.best.value - a.best.value : a.best.value - b.best.value
       );
   }, [test, filteredPlayers, players, referenceYear]);
+
+  const allEvaluations = useMemo(() => {
+    if (!test) return [];
+    const q = marksSearch.trim().toLowerCase();
+    return [...test.evaluations]
+      .filter((ev) => {
+        if (!q) return true;
+        return formatPlayerName(ev.player).toLowerCase().includes(q);
+      })
+      .sort((a, b) => {
+        const da = toDateOnlyString(a.evalDate) ?? a.evalDate;
+        const db = toDateOnlyString(b.evalDate) ?? b.evalDate;
+        if (da !== db) return db.localeCompare(da);
+        return formatPlayerName(a.player).localeCompare(formatPlayerName(b.player));
+      });
+  }, [test, marksSearch]);
 
   // Build individual chart
   const individualChartData = playerHistory.map((ev) => ({
@@ -571,6 +593,86 @@ export default function TestDetailPage() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-4">
+        <SectionHeading
+          title="Marcas registradas"
+          description="Editá o eliminá cualquier marca y su fecha"
+        />
+        {test.evaluations.length === 0 ? (
+          <EmptyState message="Aún no hay marcas registradas en este test" />
+        ) : (
+          <>
+            <div className="max-w-sm">
+              <Label htmlFor="marksSearch" className="text-xs">Buscar jugador</Label>
+              <Input
+                id="marksSearch"
+                placeholder="Nombre o apellido..."
+                value={marksSearch}
+                onChange={(e) => setMarksSearch(e.target.value)}
+                className="h-9 mt-1"
+              />
+            </div>
+            <DataTableWrap className="max-h-[480px]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="font-semibold">Jugador</TableHead>
+                    <TableHead className="font-semibold">Fecha</TableHead>
+                    <TableHead className="font-semibold text-right">Marca</TableHead>
+                    <TableHead className="font-semibold">Notas</TableHead>
+                    <TableHead className="font-semibold w-28">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allEvaluations.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        Ninguna marca coincide con la búsqueda
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    allEvaluations.map((ev) => (
+                      <TableRow key={ev.id}>
+                        <TableCell className="text-sm font-medium">{formatPlayerName(ev.player)}</TableCell>
+                        <TableCell className="text-sm whitespace-nowrap text-muted-foreground">
+                          {formatSessionDate(ev.evalDate, "d MMM yyyy", { locale: es })}
+                        </TableCell>
+                        <TableCell className="text-sm text-right font-bold text-primary font-mono">
+                          {formatTestValue(ev.value, test.unit)}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground italic max-w-[200px] truncate">
+                          {ev.notes ?? "—"}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openEditEval(ev)}>
+                              Editar
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs text-red-600 hover:text-red-700"
+                              onClick={() => handleDeleteEval(ev.id)}
+                            >
+                              Borrar
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </DataTableWrap>
+            <p className="text-xs text-muted-foreground">
+              {allEvaluations.length} de {test.evaluations.length} marca{test.evaluations.length !== 1 ? "s" : ""}
+            </p>
+          </>
+        )}
       </div>
 
       <Separator />
