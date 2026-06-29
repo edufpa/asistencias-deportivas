@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const ctx = await getSessionRole();
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  if (!canEditAttendance(ctx.role)) return forbidden("Solo entrenadores y comisión registran asistencia");
+  if (!canEditAttendance(ctx.role, ctx.email)) return forbidden("No tenés permiso para modificar asistencias o puntajes");
 
   const body = await req.json();
   const { sessionDate, sessionType, category } = body;

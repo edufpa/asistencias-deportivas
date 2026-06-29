@@ -15,7 +15,7 @@ import {
 } from "@/lib/permissions";
 import { ActionTile, ActionTileGrid } from "@/components/layout";
 
-function buildActions(role: AppRole, pendingUsers: number) {
+function buildActions(role: AppRole, email: string | null | undefined, pendingUsers: number) {
   const actions: {
     href: string;
     label: string;
@@ -24,7 +24,7 @@ function buildActions(role: AppRole, pendingUsers: number) {
     badge?: number;
   }[] = [];
 
-  if (canEditAttendance(role)) {
+  if (canEditAttendance(role, email)) {
     actions.push({
       href: "/asistencias",
       label: "Registrar asistencia",
@@ -75,12 +75,14 @@ function buildActions(role: AppRole, pendingUsers: number) {
 
 export function DashboardQuickActions({
   role,
+  email,
   pendingUsers,
 }: {
   role: AppRole;
+  email?: string | null;
   pendingUsers: number;
 }) {
-  const actions = buildActions(role, pendingUsers);
+  const actions = buildActions(role, email, pendingUsers);
 
   if (actions.length === 0) return null;
 

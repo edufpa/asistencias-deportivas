@@ -76,7 +76,7 @@ export default async function DashboardPage() {
 
       <section className="space-y-3">
         <SectionHeading title="Acciones rápidas" />
-        <DashboardQuickActions role={role} pendingUsers={kpis.pendingUsers} />
+        <DashboardQuickActions role={role} email={session?.user?.email} pendingUsers={kpis.pendingUsers} />
       </section>
 
       <DashboardKpiCards kpis={kpis} />

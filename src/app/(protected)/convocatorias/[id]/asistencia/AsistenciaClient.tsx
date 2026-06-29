@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useCanEditAttendance } from "@/hooks/useCanEditAttendance";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -50,6 +51,8 @@ export function AsistenciaClient() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const canEdit = useCanEditAttendance();
+  const readOnly = !canEdit;
   const convocatoriaId = params.id as string;
   const existingSessionId = searchParams.get("sessionId");
 
@@ -149,6 +152,7 @@ export function AsistenciaClient() {
   }
 
   function updateRecord(playerId: string, field: keyof PlayerRecord, value: AttendanceStatus | number | string | null) {
+    if (readOnly) return;
     setRecords((prev) =>
       prev.map((r) => {
         if (r.playerId !== playerId) return r;
@@ -211,13 +215,21 @@ export function AsistenciaClient() {
 
       <PageHeader title="Registro de Asistencia" />
 
+      {readOnly && (
+        <Alert>
+          <AlertDescription>
+            Solo lectura: tu usuario de comisión puede ver asistencias y puntajes pero no modificarlos.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {step === "config" && (
         <Card className="max-w-md">
           <CardHeader><CardTitle className="text-base">Configurar sesión</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <Label htmlFor="sessionDate">Fecha</Label>
-              <Input id="sessionDate" type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} />
+              <Input id="sessionDate" type="date" value={sessionDate} onChange={(e) => setSessionDate(e.target.value)} disabled={readOnly} />
             </div>
             <FilterChipGroup label="Entrenamiento">
               {TRAINING_SESSION_OPTIONS.map((opt) => (
@@ -225,14 +237,16 @@ export function AsistenciaClient() {
                   key={opt.value}
                   size="md"
                   active={sessionType === opt.value}
-                  onClick={() => setSessionType(opt.value)}
+                  onClick={() => !readOnly && setSessionType(opt.value)}
                 >
                   {opt.label}
                 </FilterChip>
               ))}
             </FilterChipGroup>
             <p className="text-xs text-muted-foreground">Incluye Pesas — mismo registro de asistencia y puntaje.</p>
-            <Button onClick={handleStartSession} className="w-full">Abrir sesión →</Button>
+            {!readOnly && (
+              <Button onClick={handleStartSession} className="w-full">Abrir sesión →</Button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -248,7 +262,9 @@ export function AsistenciaClient() {
             </div>
             <div className="flex items-center gap-3">
               {saved && <span className="text-green-600 text-sm font-medium">✓ Guardado</span>}
-              <Button onClick={handleSave} disabled={saving}>{saving ? "Guardando..." : "Guardar asistencia"}</Button>
+              {!readOnly && (
+                <Button onClick={handleSave} disabled={saving}>{saving ? "Guardando..." : "Guardar asistencia"}</Button>
+              )}
             </div>
           </div>
           {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
@@ -273,7 +289,8 @@ export function AsistenciaClient() {
                         ].map((btn) => (
                           <button key={String(btn.val)} type="button"
                             onClick={() => updateRecord(record.playerId, "status", btn.val)}
-                            className={`px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${btn.cls}`}>
+                            disabled={readOnly}
+                            className={`px-3 py-1.5 rounded-md border text-sm font-medium transition-colors ${btn.cls} ${readOnly ? "opacity-60 cursor-not-allowed" : ""}`}>
                             {btn.label}
                           </button>
                         ))}
@@ -285,6 +302,7 @@ export function AsistenciaClient() {
                             {[1, 2, 3, 4].map((score) => (
                               <button key={score} type="button"
                                 onClick={() => updateRecord(record.playerId, "performanceScore", score)}
+                                disabled={readOnly}
                                 className={`w-10 h-10 rounded-lg border text-sm font-bold transition-colors ${
                                   record.performanceScore === score
                                     ? score <= 1 ? "bg-red-500 text-white border-red-500"
@@ -306,6 +324,7 @@ export function AsistenciaClient() {
                           <Label className="text-sm text-gray-600">Motivo de la inasistencia:</Label>
                           <Textarea value={record.absenceReason}
                             onChange={(e) => updateRecord(record.playerId, "absenceReason", e.target.value)}
+                            disabled={readOnly}
                             placeholder="Describí el motivo de la inasistencia justificada..."
                             rows={2} className="text-sm" />
                         </div>
@@ -320,7 +339,9 @@ export function AsistenciaClient() {
             <Button variant="outline" onClick={() => router.push(`/convocatorias/${convocatoriaId}`)}>
               Volver a la convocatoria
             </Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "Guardando..." : "Guardar asistencia"}</Button>
+            {!readOnly && (
+              <Button onClick={handleSave} disabled={saving}>{saving ? "Guardando..." : "Guardar asistencia"}</Button>
+            )}
           </div>
         </>
       )}

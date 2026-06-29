@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getSessionRole, forbidden } from "@/lib/auth-session";
+import { canEditAttendance } from "@/lib/permissions";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const ctx = await getSessionRole();
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { id: convocatoriaId } = await params;
 
@@ -27,8 +28,11 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  const ctx = await getSessionRole();
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!canEditAttendance(ctx.role, ctx.email)) {
+    return forbidden("No tenés permiso para modificar asistencias o puntajes");
+  }
 
   const { id: convocatoriaId } = await params;
   const body = await req.json();
@@ -57,7 +61,7 @@ export async function POST(
       convocatoriaId,
       sessionDate: new Date(sessionDate),
       sessionType,
-      createdById: session.user?.id ?? "",
+      createdById: ctx.userId,
     },
   });
 

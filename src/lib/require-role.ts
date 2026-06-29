@@ -6,7 +6,7 @@ export async function getServerRole() {
   const session = await auth();
   if (!session?.user) return null;
   const role = normalizeRole((session.user as { role?: string }).role);
-  return { session, role, userId: session.user.id };
+  return { session, role, userId: session.user.id, email: session.user.email ?? null };
 }
 
 export async function requireServerRole(check: (role: AppRole) => boolean, fallback = "/asistencias") {

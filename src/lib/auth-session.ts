@@ -9,13 +9,13 @@ export async function getSessionRole() {
 
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { id: true, role: true, accountStatus: true },
+    select: { id: true, role: true, accountStatus: true, email: true },
   });
 
   if (!dbUser || dbUser.accountStatus !== "APPROVED") return null;
 
   const role = normalizeRole(dbUser.role);
-  return { session, role, userId: dbUser.id };
+  return { session, role, userId: dbUser.id, email: dbUser.email };
 }
 
 export function forbidden(message = "No autorizado") {

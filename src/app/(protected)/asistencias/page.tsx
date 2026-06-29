@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { es } from "date-fns/locale";
 import { formatSessionDate } from "@/lib/sessionDate";
 import {
@@ -21,7 +22,8 @@ import {
   loadCategoryPlayersOnly,
 } from "@/lib/attendanceSession";
 import { useAppRole } from "@/hooks/useAppRole";
-import { canEditAttendance, canViewPerformanceScores, canAccessAsistenciasSheet } from "@/lib/permissions";
+import { useCanEditAttendance } from "@/hooks/useCanEditAttendance";
+import { canViewPerformanceScores, canAccessAsistenciasSheet } from "@/lib/permissions";
 import {
   PageShell,
   PageHeader,
@@ -54,7 +56,8 @@ function AsistenciasPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const role = useAppRole();
-  const readOnly = !canEditAttendance(role);
+  const canEdit = useCanEditAttendance();
+  const readOnly = !canEdit;
   const hideScores = !canViewPerformanceScores(role);
 
   useEffect(() => {
@@ -296,6 +299,14 @@ function AsistenciasPageContent() {
         title="Asistencia General"
         description="Registro por categoría — turno mañana, tarde o pesas (asistencia y puntaje)"
       />
+
+      {readOnly && role === "COMISION" && (
+        <Alert>
+          <AlertDescription>
+            Solo lectura: tu usuario de comisión puede consultar asistencias y puntajes pero no modificarlos.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardHeader className="py-3 px-4">

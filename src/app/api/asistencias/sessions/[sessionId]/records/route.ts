@@ -28,7 +28,7 @@ export async function PUT(
   const ctx = await getSessionRole();
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  if (!canEditAttendance(ctx.role)) return forbidden("Solo entrenadores y comisión registran asistencia");
+  if (!canEditAttendance(ctx.role, ctx.email)) return forbidden("No tenés permiso para modificar asistencias o puntajes");
 
   const { sessionId } = await params;
   const body = await req.json();

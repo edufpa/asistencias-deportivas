@@ -1,5 +1,16 @@
 export type AppRole = "SUPER_ADMIN" | "COMISION" | "COACH" | "PARENT";
 
+/** Comisión con permiso para modificar asistencias y puntajes 1–4. */
+export const COMISION_ATTENDANCE_EDITOR_EMAIL = "site.eduardo@gmail.com";
+
+export function normalizeEmail(email: string | null | undefined): string {
+  return (email ?? "").trim().toLowerCase();
+}
+
+export function canComisionEditAttendanceAndScores(email: string | null | undefined): boolean {
+  return normalizeEmail(email) === COMISION_ATTENDANCE_EDITOR_EMAIL;
+}
+
 /** ADMIN legacy → SUPER_ADMIN */
 export function normalizeRole(role: string | undefined | null): AppRole {
   if (!role) return "COACH";
@@ -47,8 +58,10 @@ export function canDeletePlayers(role: AppRole): boolean {
   return canEditPlayers(role);
 }
 
-export function canEditAttendance(role: AppRole): boolean {
-  return role !== "PARENT";
+export function canEditAttendance(role: AppRole, email?: string | null): boolean {
+  if (role === "PARENT") return false;
+  if (role === "COMISION") return canComisionEditAttendanceAndScores(email);
+  return true;
 }
 
 export function canViewPerformanceScores(role: AppRole): boolean {
