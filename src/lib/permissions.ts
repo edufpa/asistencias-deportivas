@@ -116,19 +116,14 @@ export function navLinksForRole(role: AppRole): NavLink[] {
   const links: NavLink[] = [];
   if (canAccessDashboard(role)) links.push({ href: "/dashboard", label: "Dashboard" });
   if (canAccessPlayersList(role)) links.push({ href: "/players", label: "Jugadores" });
-  if (canAccessAsistenciasSheet(role)) links.push({ href: "/asistencias", label: "Asistencias" });
-  if (canAccessTorneos(role)) links.push({ href: "/convocatorias", label: "Torneos" });
+  if (canAccessAsistenciasSheet(role)) links.push({ href: "/asistencias", label: "Asistencia" });
+  if (canAccessReportes(role)) links.push({ href: "/reportes", label: "Reporte Asistencias" });
   if (role === "PARENT") {
     links.push({ href: "/mi-perfil", label: "Mi perfil" });
-  } else {
+  } else if (canAccessTestsCatalog(role)) {
     links.push({ href: "/tests", label: "Tests" });
   }
-  if (canAccessReportes(role)) {
-    links.push({ href: "/reportes", label: "Reporte Asistencia" });
-    links.push({ href: "/reportes/partidos", label: "Partidos" });
-  }
-  if (canViewAdminLogs(role)) {
-    links.push({ href: "/admin/logs", label: "Actividad" });
-  }
+  if (canAccessTorneos(role)) links.push({ href: "/convocatorias", label: "Torneos" });
+  if (canAccessPartidos(role)) links.push({ href: "/reportes/partidos", label: "Partidos" });
   return links;
 }
