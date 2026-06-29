@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { isTemporaryClubEmail } from "@/lib/clubEmail";
 
 export const DEFAULT_PLAYER_ACCOUNT_PASSWORD = "12345";
 
@@ -7,6 +8,9 @@ export function playerAccountEmail(documentId: string): string {
   const dni = documentId.trim().replace(/\s/g, "");
   return `${dni}@waterpolo.com`.toLowerCase();
 }
+
+/** @deprecated Usar isTemporaryClubEmail */
+export const isPlaceholderPlayerEmail = isTemporaryClubEmail;
 
 export function playerDisplayName(player: {
   firstName: string;

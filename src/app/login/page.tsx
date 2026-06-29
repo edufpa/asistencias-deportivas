@@ -53,6 +53,8 @@ export default function LoginPage() {
 
     if (result?.error) {
       setError("Email o contraseña incorrectos");
+    } else if (preData.requiresAccountSetup) {
+      router.push("/completar-cuenta");
     } else {
       const dest = preData.role === "PARENT" ? "/mi-perfil" : "/dashboard";
       router.push(dest);

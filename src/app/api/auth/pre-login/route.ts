@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { isTemporaryClubEmail } from "@/lib/clubEmail";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
@@ -36,7 +37,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ ok: true, role: user.role });
+    return NextResponse.json({
+      ok: true,
+      role: user.role,
+      requiresAccountSetup: isTemporaryClubEmail(user.email),
+    });
   } catch (error) {
     console.error("[pre-login] database error:", error);
     return NextResponse.json({ error: "server" }, { status: 500 });
