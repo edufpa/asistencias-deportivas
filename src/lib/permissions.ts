@@ -125,5 +125,6 @@ export function navLinksForRole(role: AppRole): NavLink[] {
   }
   if (canAccessTorneos(role)) links.push({ href: "/convocatorias", label: "Torneos" });
   if (canAccessPartidos(role)) links.push({ href: "/reportes/partidos", label: "Partidos" });
+  links.push({ href: "/calendario", label: "Calendario" });
   return links;
 }

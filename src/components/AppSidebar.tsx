@@ -28,6 +28,7 @@ import {
   Menu,
   X,
   KeyRound,
+  CalendarDays,
 } from "lucide-react";
 
 const adminLinks = [
@@ -44,6 +45,7 @@ const navIcons: Record<string, ComponentType<{ className?: string }>> = {
   "/tests": FlaskConical,
   "/reportes": BarChart3,
   "/reportes/partidos": Swords,
+  "/calendario": CalendarDays,
   "/admin/usuarios": UserCog,
   "/admin/logs": ScrollText,
 };

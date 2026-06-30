@@ -29,6 +29,7 @@ model User {
   activityLogs       ActivityLog[]
   linkedPlayers      UserPlayer[]
   passwordResetTokens PasswordResetToken[]
+  calendarEvents     CalendarEvent[]
 
   @@map("users")
 }
@@ -407,4 +408,53 @@ model MatchPlayerStat {
 
   @@unique([matchId, playerId, quarter])
   @@map("match_player_stats")
+}
+
+// ─── CALENDARIO DE ACTIVIDADES ────────────────────────────────────────────────
+
+enum EventCategory {
+  TORNEO
+  PARTIDO_PRACTICA
+  INSCRIPCION
+  CONGRESILLO
+  PAGO_INSCRIPCION
+  REUNION_PAPAS
+  REUNION_ENTRENADORES
+  REUNION_COMISION
+  OTRAS
+}
+
+enum EventAccessLevel {
+  COMISION
+  COACH
+  PARENT
+}
+
+enum EventLocation {
+  MEET
+  OFICINA
+  SALON_NAUTICO
+  OTRO
+}
+
+model CalendarEvent {
+  id           String             @id @default(cuid())
+  title        String
+  description  String?
+  location     EventLocation?
+  locationOther String?
+  startDate    DateTime           @db.Date
+  endDate      DateTime?          @db.Date
+  startTime    String?
+  endTime      String?
+  allDay       Boolean            @default(true)
+  category     EventCategory
+  accessLevels EventAccessLevel[]
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  @@map("calendar_events")
 }
