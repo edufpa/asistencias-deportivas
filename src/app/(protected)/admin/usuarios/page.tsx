@@ -68,7 +68,7 @@ type PlayerOption = {
 
 function roleBadgeVariant(role: AppRole): "default" | "secondary" | "outline" | "destructive" {
   if (role === "SUPER_ADMIN") return "default";
-  if (role === "COMISION") return "secondary";
+  if (role === "COMISION" || role === "DELEGADO") return "secondary";
   if (role === "PARENT") return "outline";
   return "secondary";
 }
@@ -164,7 +164,7 @@ function UsuariosAdminContent() {
     if (filterRole !== "ALL") {
       list = list.filter((u) =>
         filterRole === "COMISION"
-          ? u.role === "COMISION" || u.role === "SUPER_ADMIN"
+          ? u.role === "COMISION" || u.role === "DELEGADO" || u.role === "SUPER_ADMIN"
           : u.role === filterRole
       );
     }

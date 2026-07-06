@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { isTemporaryClubEmail } from "@/lib/clubEmail";
+import { isSafeCallbackUrl } from "@/lib/mcp/config";
 
 export async function proxy(req: NextRequest) {
   const session = await auth();
@@ -21,13 +22,20 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/restablecer-contrasena/") ||
     pathname === "/api/auth/forgot-password" ||
     pathname.startsWith("/api/auth/reset-password/");
+  const isMcpPublic =
+    pathname.startsWith("/api/mcp") ||
+    pathname.startsWith("/.well-known/") ||
+    pathname === "/authorize" ||
+    pathname === "/token" ||
+    pathname === "/register";
 
   if (
     isApiAuth ||
     isSetupPage ||
     isPublicRegistration ||
     isPublicPasswordReset ||
-    isCompleteAccountApi
+    isCompleteAccountApi ||
+    isMcpPublic
   ) {
     return NextResponse.next();
   }
@@ -45,6 +53,10 @@ export async function proxy(req: NextRequest) {
   }
 
   if (isLoggedIn && isLoginPage) {
+    const callbackUrl = req.nextUrl.searchParams.get("callbackUrl");
+    if (callbackUrl && isSafeCallbackUrl(callbackUrl, req.nextUrl.origin)) {
+      return NextResponse.redirect(callbackUrl);
+    }
     const role = (session.user as { role?: string }).role;
     const dest = needsAccountSetup
       ? "/completar-cuenta"

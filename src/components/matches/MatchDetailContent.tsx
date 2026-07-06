@@ -21,6 +21,7 @@ import {
   type MatchPlayerStatKey,
   type MatchPlayerStats,
 } from "@/lib/matchPlayerStats";
+import { sumPlayerGoals, validateMatchGoalsAgainstScore } from "@/lib/matchGoalsValidation";
 import {
   PageShell,
   PageHeader,
@@ -187,6 +188,16 @@ export function MatchDetailContent({
         }
       }
     }
+
+    const scoreLimit =
+      homeScore !== "" ? Number(homeScore) : match?.homeScore ?? null;
+    const goalsError = validateMatchGoalsAgainstScore(allStats, scoreLimit);
+    if (goalsError) {
+      setSaving(false);
+      setError(goalsError);
+      return;
+    }
+
     const res = await fetch(`/api/matches/${matchId}/stats`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -194,7 +205,8 @@ export function MatchDetailContent({
     });
     setSaving(false);
     if (!res.ok) {
-      setError("Error al guardar estadísticas");
+      const data = await res.json().catch(() => ({}));
+      setError(data.error || "Error al guardar estadísticas");
       return;
     }
     setSaved(true);
@@ -255,6 +267,14 @@ export function MatchDetailContent({
 
   const players = match.convocatoria.players.map((cp) => cp.player);
   const myTeam = match.isFriendly ? "Regatas" : match.convocatoria.name.split(" ")[0];
+  const totalPlayerGoals = Object.values(playerTotals).reduce((sum, s) => sum + s.goals, 0);
+  const teamScoreLimit =
+    homeScore !== "" ? Number(homeScore) : match.homeScore;
+  const goalsOverLimit =
+    teamScoreLimit !== null &&
+    teamScoreLimit !== undefined &&
+    !Number.isNaN(teamScoreLimit) &&
+    totalPlayerGoals > teamScoreLimit;
   const matchDescription = [
     match.convocatoria.name,
     format(new Date(match.matchDate), "EEEE d 'de' MMMM yyyy", { locale: es }),
@@ -279,7 +299,7 @@ export function MatchDetailContent({
               {match.isFriendly ? "Amistoso" : match.matchType === "OFFICIAL" ? "Oficial" : "Preparación"}
             </Badge>
             {saved && <span className="text-sm font-medium text-emerald-600">✓ Guardado</span>}
-            <Button onClick={handleSaveStats} disabled={saving}>
+            <Button onClick={handleSaveStats} disabled={saving || goalsOverLimit}>
               {saving ? "Guardando..." : "Guardar planilla"}
             </Button>
             <Button
@@ -455,6 +475,13 @@ export function MatchDetailContent({
           Totales
         </FilterChip>
       </FilterChipGroup>
+
+      {teamScoreLimit !== null && teamScoreLimit !== undefined && !Number.isNaN(teamScoreLimit) && (
+        <p className={`text-sm ${goalsOverLimit ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+          Goles registrados por jugadores: {totalPlayerGoals} / {teamScoreLimit} (marcador del equipo)
+          {goalsOverLimit && " — debes corregir antes de guardar"}
+        </p>
+      )}
 
       {activeQuarter > 0 ? (
         <Card>

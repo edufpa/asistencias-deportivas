@@ -24,7 +24,7 @@ import { PlayerAsistenciaPanel } from "@/components/players/PlayerAsistenciaPane
 import { PlayerTestsPanel } from "@/components/players/PlayerTestsPanel";
 import { PlayerPartidosPanel } from "@/components/players/PlayerPartidosPanel";
 import { useAppRole } from "@/hooks/useAppRole";
-import { canEditPlayers, canViewPerformanceScores, canAccessPartidos, canViewPlayerContactData } from "@/lib/permissions";
+import { canEditPlayers, canAccessPartidos, canViewPlayerContactData } from "@/lib/permissions";
 
 type ConvocatoriaEntry = {
   id: string;
@@ -183,7 +183,6 @@ export function PlayerDetailView({ player, age }: { player: PlayerDetail; age: n
   const role = useAppRole();
   const canEdit = canEditPlayers(role);
   const showContactData = canViewPlayerContactData(role);
-  const hideScores = !canViewPerformanceScores(role);
   const showPartidos = canAccessPartidos(role);
 
   const datosTabs = useMemo(
@@ -504,7 +503,7 @@ export function PlayerDetailView({ player, age }: { player: PlayerDetail; age: n
               </Link>
             </div>
           )}
-          <PlayerAsistenciaPanel playerId={player.id} hideScores={hideScores} />
+          <PlayerAsistenciaPanel playerId={player.id} />
         </div>
       )}
 

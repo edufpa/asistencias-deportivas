@@ -86,7 +86,10 @@ export function AsistenciaClient() {
     const recordMap = new Map(
       existingRecords.map((r: { playerId: string; status: string; performanceScore: number | null; absenceReason: string | null }) => [r.playerId, r])
     );
-    const activePlayers = conv.players.filter((p: { status: string }) => p.status === "ACTIVE");
+    const activePlayers = conv.players.filter(
+      (p: { status: string; player: { playerStatus?: string } }) =>
+        p.status === "ACTIVE" && p.player.playerStatus === "ACTIVE"
+    );
     setRecords(
       activePlayers.map((cp: { player: { id: string; firstName: string; paternalLastName: string; maternalLastName: string } }) => {
         const existing = recordMap.get(cp.player.id) as { status?: string; performanceScore?: number | null; absenceReason?: string | null } | undefined;
@@ -127,7 +130,10 @@ export function AsistenciaClient() {
     setSessionId(sessionData.id);
     const convRes = await fetch(`/api/convocatorias/${convocatoriaId}`);
     const conv = await convRes.json();
-    const activePlayers = conv.players.filter((p: { status: string }) => p.status === "ACTIVE");
+    const activePlayers = conv.players.filter(
+      (p: { status: string; player: { playerStatus?: string } }) =>
+        p.status === "ACTIVE" && p.player.playerStatus === "ACTIVE"
+    );
     const recRes = await fetch(`/api/convocatorias/${convocatoriaId}/sessions/${sessionData.id}/records`);
     const existingRecords = await recRes.json();
     const recordMap = new Map(
@@ -218,7 +224,7 @@ export function AsistenciaClient() {
       {readOnly && (
         <Alert>
           <AlertDescription>
-            Solo lectura: tu usuario de comisión puede ver asistencias y puntajes pero no modificarlos.
+            Solo lectura: tu usuario de comisión puede ver asistencias pero no modificarlas.
           </AlertDescription>
         </Alert>
       )}
@@ -243,7 +249,7 @@ export function AsistenciaClient() {
                 </FilterChip>
               ))}
             </FilterChipGroup>
-            <p className="text-xs text-muted-foreground">Incluye Pesas — mismo registro de asistencia y puntaje.</p>
+            <p className="text-xs text-muted-foreground">Incluye Pesas — mismo registro de asistencia.</p>
             {!readOnly && (
               <Button onClick={handleStartSession} className="w-full">Abrir sesión →</Button>
             )}
@@ -269,7 +275,7 @@ export function AsistenciaClient() {
           </div>
           {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
           <div className="text-xs text-gray-400 bg-gray-50 rounded-lg px-4 py-2 border">
-            <strong>Instrucciones:</strong> Marcá asistencia y, si asistió, el puntaje 1–4. Pesas se registra igual que turno mañana o tarde.
+            <strong>Instrucciones:</strong> Marcá asistencia. Pesas se registra igual que turno mañana o tarde.
           </div>
           <div className="space-y-3">
             {records.map((record) => (
@@ -297,7 +303,7 @@ export function AsistenciaClient() {
                       </div>
                       {record.status === "ATTENDED" && (
                         <div className="flex items-center gap-3">
-                          <Label className="text-sm text-gray-600 shrink-0">Puntaje *:</Label>
+                          <Label className="text-sm text-gray-600 shrink-0">Registro *:</Label>
                           <div className="flex gap-1">
                             {[1, 2, 3, 4].map((score) => (
                               <button key={score} type="button"

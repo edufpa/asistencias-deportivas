@@ -1,9 +1,9 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { formatPlayerName } from "@/lib/player";
+import { cn } from "@/lib/utils";
 
 export type AttendanceStatus = "ATTENDED" | "ABSENT_JUSTIFIED" | "ABSENT_UNJUSTIFIED" | null;
 
@@ -18,50 +18,36 @@ export type PlayerRecord = {
   absenceReason: string;
 };
 
-const SCORE_LABELS: Record<number, string> = {
-  1: "Bajo",
-  2: "Regular",
-  3: "Bueno",
-  4: "Excelente",
-};
-
 const STATUS_LABELS: Record<string, string> = {
   ATTENDED: "Asistió",
-  ABSENT_JUSTIFIED: "Justificada",
-  ABSENT_UNJUSTIFIED: "Injustificada",
+  ABSENT_JUSTIFIED: "Falta",
+  ABSENT_UNJUSTIFIED: "Falta",
 };
 
 const STATUS_BUTTONS = [
   { val: null, label: "N/A", active: "bg-gray-200 text-gray-700 border-gray-300", idle: "bg-white text-gray-400 border-gray-200 hover:border-gray-400" },
   { val: "ATTENDED" as const, label: "Asistió", active: "bg-green-600 text-white border-green-600", idle: "bg-white text-gray-600 border-gray-200 hover:border-green-400" },
-  { val: "ABSENT_JUSTIFIED" as const, label: "Just.", active: "bg-yellow-500 text-white border-yellow-500", idle: "bg-white text-gray-600 border-gray-200 hover:border-yellow-400" },
-  { val: "ABSENT_UNJUSTIFIED" as const, label: "Injust.", active: "bg-red-600 text-white border-red-600", idle: "bg-white text-gray-600 border-gray-200 hover:border-red-400" },
+  { val: "ABSENT_UNJUSTIFIED" as const, label: "Falta", active: "bg-red-600 text-white border-red-600", idle: "bg-white text-gray-600 border-gray-200 hover:border-red-400" },
 ];
 
 type Props = {
   records: PlayerRecord[];
-  onUpdate: (playerId: string, field: keyof PlayerRecord, value: AttendanceStatus | number | string | null) => void;
-  onMarkAll: (status: "ATTENDED" | "ABSENT_UNJUSTIFIED") => void;
-  saving: boolean;
-  saved: boolean;
+  onStatusChange: (playerId: string, status: AttendanceStatus) => void;
+  onAbsenceReasonChange: (playerId: string, value: string) => void;
+  onAbsenceReasonBlur: (playerId: string) => void;
+  savingPlayerId: string | null;
   error: string;
-  onSave: () => void;
   readOnly?: boolean;
-  hideScores?: boolean;
-  requireScore?: boolean;
 };
 
 export function AttendancePlayerList({
   records,
-  onUpdate,
-  onMarkAll,
-  saving,
-  saved,
+  onStatusChange,
+  onAbsenceReasonChange,
+  onAbsenceReasonBlur,
+  savingPlayerId,
   error,
-  onSave,
   readOnly = false,
-  hideScores = false,
-  requireScore = false,
 }: Props) {
   const attended = records.filter((r) => r.status === "ATTENDED").length;
   const absent = records.filter((r) => r.status && r.status !== "ATTENDED").length;
@@ -70,38 +56,15 @@ export function AttendancePlayerList({
   return (
     <div className="space-y-2">
       {!readOnly && (
-        <div className="flex items-center justify-between gap-2 flex-wrap py-1">
-          <div className="flex items-center gap-3 text-xs">
-            <span className="text-green-700 font-medium">{attended} ✓</span>
-            <span className="text-red-600 font-medium">{absent} ✗</span>
-            {pending > 0 && <span className="text-gray-400">{pending} pend.</span>}
-            <span className="text-gray-300">|</span>
-            <button type="button" onClick={() => onMarkAll("ATTENDED")} disabled={records.length === 0} className="text-blue-600 hover:underline disabled:opacity-40">
-              Todos presentes
-            </button>
-            <button type="button" onClick={() => onMarkAll("ABSENT_UNJUSTIFIED")} disabled={records.length === 0} className="text-blue-600 hover:underline disabled:opacity-40">
-              Todos ausentes
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            {saved && <span className="text-green-600 text-xs font-medium">✓ Guardado</span>}
-            <Button onClick={onSave} disabled={saving || records.length === 0} size="sm" className="h-8">
-              {saving ? "Guardando..." : "Guardar"}
-            </Button>
-          </div>
+        <div className="flex items-center gap-3 text-xs py-1">
+          <span className="text-green-700 font-medium">{attended} ✓</span>
+          <span className="text-red-600 font-medium">{absent} faltas</span>
+          {pending > 0 && <span className="text-gray-400">{pending} pend.</span>}
         </div>
       )}
 
       {readOnly && (
         <p className="text-xs text-gray-500 py-1">Vista de solo lectura — asistencia de tus hijos</p>
-      )}
-
-      {!readOnly && !hideScores && (
-        <p className="text-[11px] text-gray-500 py-0.5">
-          {requireScore
-            ? "Si marcás Asistió, debés asignar puntaje 1–4 (Bajo → Excelente)."
-            : "Opcional: puntaje 1–4 para quienes asistieron."}
-        </p>
       )}
 
       {error && (
@@ -114,14 +77,16 @@ export function AttendancePlayerList({
         <p className="text-center py-6 text-gray-400 text-sm">No hay jugadores en esta categoría</p>
       ) : (
         <div className="border rounded-lg divide-y">
-          {records.map((record) => (
+          {records.map((record) => {
+            const isSaving = savingPlayerId === record.playerId;
+            return (
             <div
               key={record.playerId}
-              className={`px-3 py-2 ${record.status ? "bg-white" : "bg-gray-50/50"}`}
+              className={cn("px-3 py-2", record.status ? "bg-white" : "bg-gray-50/50", isSaving && "opacity-70")}
             >
-              <div className="flex flex-col lg:flex-row lg:items-center gap-2">
-                <div className="lg:w-44 shrink-0 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{formatPlayerName(record)}</p>
+              <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-4">
+                <div className="lg:w-72 xl:w-80 shrink-0 min-w-0">
+                  <p className="text-base font-semibold text-gray-900 truncate">{formatPlayerName(record)}</p>
                   <p className="text-[11px] text-gray-400">{record.birthYear}</p>
                 </div>
 
@@ -131,16 +96,14 @@ export function AttendancePlayerList({
                       className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
                         record.status === "ATTENDED"
                           ? "bg-green-100 text-green-800"
-                          : record.status === "ABSENT_JUSTIFIED"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : record.status === "ABSENT_UNJUSTIFIED"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-gray-100 text-gray-500"
+                          : record.status
+                            ? "bg-red-100 text-red-800"
+                            : "bg-gray-100 text-gray-500"
                       }`}
                     >
                       {record.status ? STATUS_LABELS[record.status] : "Sin registro"}
                     </span>
-                    {record.status === "ABSENT_JUSTIFIED" && record.absenceReason && (
+                    {record.status && record.status !== "ATTENDED" && record.absenceReason && (
                       <p className="text-xs text-gray-500 mt-1">{record.absenceReason}</p>
                     )}
                   </div>
@@ -151,8 +114,9 @@ export function AttendancePlayerList({
                         <button
                           key={String(btn.val)}
                           type="button"
-                          onClick={() => onUpdate(record.playerId, "status", btn.val)}
-                          className={`px-2 py-0.5 rounded border text-xs font-medium transition-colors ${
+                          disabled={isSaving}
+                          onClick={() => onStatusChange(record.playerId, btn.val)}
+                          className={`px-3 py-1.5 rounded border text-xs font-semibold transition-colors disabled:cursor-wait ${
                             record.status === btn.val ? btn.active : btn.idle
                           }`}
                         >
@@ -161,51 +125,26 @@ export function AttendancePlayerList({
                       ))}
                     </div>
 
-                    {!hideScores && record.status === "ATTENDED" && (
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="text-[11px] text-gray-500">
-                          Nota{requireScore ? " *" : ":"}
-                        </span>
-                        {[1, 2, 3, 4].map((score) => (
-                          <button
-                            key={score}
-                            type="button"
-                            onClick={() => onUpdate(record.playerId, "performanceScore", score)}
-                            title={SCORE_LABELS[score]}
-                            className={`w-7 h-7 rounded border text-xs font-bold transition-colors ${
-                              record.performanceScore === score
-                                ? score <= 1
-                                  ? "bg-red-500 text-white border-red-500"
-                                  : score === 2
-                                  ? "bg-yellow-500 text-white border-yellow-500"
-                                  : score === 3
-                                  ? "bg-blue-500 text-white border-blue-500"
-                                  : "bg-green-600 text-white border-green-600"
-                                : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
-                            }`}
-                          >
-                            {score}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    {isSaving && <span className="text-[11px] text-muted-foreground">Guardando...</span>}
                   </>
                 )}
               </div>
 
-              {!readOnly && record.status === "ABSENT_JUSTIFIED" && (
-                <div className="mt-1.5 pl-0 lg:pl-44">
+              {!readOnly && record.status && record.status !== "ATTENDED" && (
+                <div className="mt-1.5 pl-0 lg:pl-72 xl:pl-80">
                   <Textarea
                     value={record.absenceReason}
-                    onChange={(e) => onUpdate(record.playerId, "absenceReason", e.target.value)}
-                    placeholder="Motivo..."
-                    rows={1}
+                    onChange={(e) => onAbsenceReasonChange(record.playerId, e.target.value)}
+                    onBlur={() => onAbsenceReasonBlur(record.playerId)}
+                    placeholder="Motivo de la falta..."
+                    rows={2}
                     className="text-xs min-h-[32px] py-1.5 resize-none"
                   />
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

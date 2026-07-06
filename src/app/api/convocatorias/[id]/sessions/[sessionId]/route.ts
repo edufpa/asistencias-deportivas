@@ -36,7 +36,7 @@ export async function DELETE(
   const ctx = await getSessionRole();
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   if (!canEditAttendance(ctx.role, ctx.email)) {
-    return forbidden("No tenés permiso para modificar asistencias o puntajes");
+    return forbidden("No tenés permiso para modificar asistencias");
   }
 
   const { sessionId } = await params;

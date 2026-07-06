@@ -75,7 +75,7 @@ export async function getCategoryAttendanceComparison(
 
   const records = await prisma.attendanceRecord.findMany({
     where: { sessionId: { in: sessionIds } },
-    select: { playerId: true, sessionId: true, status: true, performanceScore: true },
+    select: { playerId: true, sessionId: true, status: true },
   });
 
   const scopedRecords = records.filter((r) => categoryPlayerIds.has(r.playerId));

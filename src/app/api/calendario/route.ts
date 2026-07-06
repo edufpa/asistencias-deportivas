@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSessionRole } from "@/lib/auth-session";
 import { prisma } from "@/lib/prisma";
+import {
+  calendarEventsOverlappingMonthWhere,
+  getCalendarMonthRange,
+} from "@/lib/calendario";
 import { EventAccessLevel, EventCategory, EventLocation } from "@prisma/client";
 
 // Parse a YYYY-MM-DD string as UTC midnight so @db.Date stores the correct day
@@ -20,23 +24,24 @@ export async function GET(request: Request) {
   const accessMap: Record<string, EventAccessLevel> = {
     SUPER_ADMIN: "COMISION",
     COMISION: "COMISION",
+    DELEGADO: "COMISION",
     COACH: "COACH",
     PARENT: "PARENT",
   };
   const userAccessLevel = accessMap[role];
 
-  let startDate: Date | undefined;
-  let endDate: Date | undefined;
+  let monthStart: Date | undefined;
+  let monthEnd: Date | undefined;
   if (month) {
-    const [y, m] = month.split("-").map(Number);
-    startDate = new Date(Date.UTC(y, m - 1, 1));
-    endDate = new Date(Date.UTC(y, m, 0, 23, 59, 59));
+    const range = getCalendarMonthRange(month);
+    monthStart = range.start;
+    monthEnd = range.end;
   }
 
   const events = await prisma.calendarEvent.findMany({
     where: {
       accessLevels: { has: userAccessLevel },
-      ...(startDate && endDate ? { startDate: { gte: startDate, lte: endDate } } : {}),
+      ...(monthStart && monthEnd ? calendarEventsOverlappingMonthWhere(monthStart, monthEnd) : {}),
       ...(category ? { category } : {}),
     },
     include: { createdBy: { select: { name: true, email: true } } },
@@ -51,7 +56,7 @@ export async function POST(request: Request) {
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { role, userId } = ctx;
-  if (role !== "COMISION" && role !== "COACH" && role !== "SUPER_ADMIN") {
+  if (role !== "COMISION" && role !== "DELEGADO" && role !== "COACH" && role !== "SUPER_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -56,3 +56,59 @@ function escapeHtml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+
+export async function sendCoachReportEmail(
+  to: string[],
+  subject: string,
+  htmlBody: string,
+  pdfBytes: Uint8Array,
+  filename: string
+): Promise<SendResult> {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const from = process.env.EMAIL_FROM?.trim() ?? "Asistencias <onboarding@resend.dev>";
+
+  if (!apiKey) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[coach-report] Sin RESEND_API_KEY. Informe para: ${to.join(", ")}`);
+    } else {
+      console.warn(`[coach-report] RESEND_API_KEY no configurada.`);
+    }
+    return { sent: false, reason: "email_not_configured" };
+  }
+
+  const recipients = to.filter(Boolean);
+  if (!recipients.length) return { sent: false, reason: "no_recipients" };
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: recipients,
+        subject,
+        html: htmlBody,
+        attachments: [
+          {
+            filename,
+            content: Buffer.from(pdfBytes).toString("base64"),
+          },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.text();
+      console.error("[coach-report] Resend error:", res.status, body);
+      return { sent: false, reason: "send_failed" };
+    }
+
+    return { sent: true };
+  } catch (error) {
+    console.error("[coach-report] send error:", error);
+    return { sent: false, reason: "send_failed" };
+  }
+}

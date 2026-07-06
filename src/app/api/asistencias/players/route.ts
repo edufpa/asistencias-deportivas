@@ -33,7 +33,11 @@ export async function GET(req: NextRequest) {
   }
 
   const players = await prisma.player.findMany({
-    where: linkedIds ? { id: { in: linkedIds } } : undefined,
+    where: {
+      ...(linkedIds
+        ? { id: { in: linkedIds }, playerStatus: "ACTIVE" }
+        : { playerStatus: "ACTIVE" }),
+    },
     orderBy: [{ paternalLastName: "asc" }, { firstName: "asc" }],
   });
 

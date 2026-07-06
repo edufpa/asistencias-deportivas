@@ -6,11 +6,7 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { useAppRole } from "@/hooks/useAppRole";
-import {
-  navLinksForRole,
-  canAccessAdminPanel,
-  ROLE_LABELS,
-} from "@/lib/permissions";
+import { navLinksForRole, canAccessAdminPanel, ROLE_LABELS, defaultHomePath } from "@/lib/permissions";
 import { ClubLogo } from "@/components/ClubLogo";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -25,6 +21,7 @@ import {
   UserCog,
   ScrollText,
   LogOut,
+  FileText,
   Menu,
   X,
   KeyRound,
@@ -33,6 +30,7 @@ import {
 
 const adminLinks = [
   { href: "/admin/usuarios", label: "Usuarios", icon: UserCog },
+  { href: "/admin/temporada", label: "Temporada", icon: CalendarDays },
   { href: "/admin/logs", label: "Actividad", icon: ScrollText },
 ];
 
@@ -40,13 +38,16 @@ const navIcons: Record<string, ComponentType<{ className?: string }>> = {
   "/dashboard": LayoutDashboard,
   "/players": Users,
   "/asistencias": ClipboardCheck,
+  "/asistencias/pesas": ClipboardCheck,
   "/convocatorias": Trophy,
+  "/informes": FileText,
   "/mi-perfil": Heart,
   "/tests": FlaskConical,
   "/reportes": BarChart3,
   "/reportes/partidos": Swords,
   "/calendario": CalendarDays,
   "/admin/usuarios": UserCog,
+  "/admin/temporada": CalendarDays,
   "/admin/logs": ScrollText,
 };
 
@@ -84,14 +85,16 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const role = useAppRole();
-  const navLinks = navLinksForRole(role);
+  const navLinks = navLinksForRole(role, session?.user?.email);
   const showAdmin = canAccessAdminPanel(role);
-  const homeHref = role === "PARENT" ? "/mi-perfil" : "/dashboard";
+  const homeHref = defaultHomePath(role, session?.user?.email);
 
   const isActive = (href: string) =>
     href === "/reportes"
       ? pathname === "/reportes"
-      : pathname === href || pathname.startsWith(`${href}/`);
+      : href === "/informes"
+        ? pathname === "/informes" || pathname.startsWith("/informes/")
+        : pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <div className="flex flex-col h-full">
@@ -164,8 +167,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
 export function AppSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { data: session } = useSession();
   const role = useAppRole();
-  const homeHref = role === "PARENT" ? "/mi-perfil" : "/dashboard";
+  const homeHref = defaultHomePath(role, session?.user?.email);
 
   return (
     <>

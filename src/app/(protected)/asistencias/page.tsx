@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useMemo, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { CATEGORIES, CATEGORY_LABELS, PLAYER_GENDER_OPTIONS } from "@/lib/player";
 import type { Category, PlayerGender } from "@/lib/player";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,9 +22,9 @@ import {
   loadCategoryAttendanceRecords,
   loadCategoryPlayersOnly,
 } from "@/lib/attendanceSession";
+import { hasComisionLikeRole, canAccessAsistenciasSheet, usesPesasAttendanceDedicatedUx } from "@/lib/permissions";
 import { useAppRole } from "@/hooks/useAppRole";
 import { useCanEditAttendance } from "@/hooks/useCanEditAttendance";
-import { canViewPerformanceScores, canAccessAsistenciasSheet } from "@/lib/permissions";
 import {
   PageShell,
   PageHeader,
@@ -35,9 +36,9 @@ import {
 import {
   TRAINING_SESSION_OPTIONS,
   SESSION_TYPE_SHORT,
-  validateTrainingAttendanceRecords,
   type SessionType,
 } from "@/lib/attendance";
+import type { SeasonSessionOption } from "@/lib/attendanceSeasonShared";
 
 type RecentSession = {
   id: string;
@@ -55,14 +56,16 @@ function isCategory(v: string | null): v is Category {
 function AsistenciasPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { data: session } = useSession();
   const role = useAppRole();
   const canEdit = useCanEditAttendance();
   const readOnly = !canEdit;
-  const hideScores = !canViewPerformanceScores(role);
+  const canUsePesasInGeneral = role === "SUPER_ADMIN" || role === "COMISION";
 
   useEffect(() => {
     if (role === "PARENT") router.replace("/mi-perfil");
-  }, [role, router]);
+    else if (usesPesasAttendanceDedicatedUx(session?.user?.email)) router.replace("/asistencias/pesas");
+  }, [role, router, session?.user?.email]);
 
   const initialCategory = searchParams.get("category");
   const initialSessionId = searchParams.get("sessionId");
@@ -73,27 +76,74 @@ function AsistenciasPageContent() {
   const [selectedGender, setSelectedGender] = useState<PlayerGender>("MALE");
   const [sessionDate, setSessionDate] = useState(new Date().toISOString().split("T")[0]);
   const [sessionType, setSessionType] = useState<SessionType>("TURNO_MANANA");
+  const [seasonOptions, setSeasonOptions] = useState<SeasonSessionOption[]>(TRAINING_SESSION_OPTIONS);
   const [pinnedSessionId, setPinnedSessionId] = useState<string | null>(initialSessionId);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
 
   const [records, setRecords] = useState<PlayerRecord[]>([]);
   const [loadingPlayers, setLoadingPlayers] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [savingPlayerId, setSavingPlayerId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(true);
+
+  const sessionOptions = useMemo(
+    () =>
+      canUsePesasInGeneral
+        ? seasonOptions
+        : seasonOptions.filter((opt) => opt.value !== "PESAS"),
+    [canUsePesasInGeneral, seasonOptions]
+  );
+  const sessionLabelByType = useMemo(() => {
+    const labels = new Map<SessionType, string>();
+    for (const opt of TRAINING_SESSION_OPTIONS) labels.set(opt.value, opt.short);
+    for (const opt of sessionOptions) labels.set(opt.value, opt.short);
+    return labels;
+  }, [sessionOptions]);
+  const activeSessionLabel = sessionLabelByType.get(sessionType) ?? SESSION_TYPE_SHORT[sessionType];
+
+  useEffect(() => {
+    let alive = true;
+    async function loadSeasonOptions() {
+      const res = await fetch(`/api/attendance-season/active?date=${sessionDate}`);
+      if (!alive || !res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.options)) {
+        setSeasonOptions(data.options);
+      }
+    }
+    loadSeasonOptions();
+    return () => {
+      alive = false;
+    };
+  }, [sessionDate]);
+
+  useEffect(() => {
+    if (sessionOptions.length === 0) return;
+    if (!sessionOptions.some((opt) => opt.value === sessionType)) {
+      setSessionType(sessionOptions[0].value);
+      setPinnedSessionId(null);
+      setCurrentSessionId(null);
+    }
+  }, [sessionOptions, sessionType]);
 
   const loadRecent = useCallback(async () => {
     setLoadingRecent(true);
     const res = await fetch(`/api/asistencias/sessions?category=${selectedCategory}`);
     if (res.ok) {
       const sessions: RecentSession[] = await res.json();
-      setRecentSessions(sessions.filter((s) => s.category && s.sessionDate));
+      setRecentSessions(
+        sessions.filter(
+          (s) =>
+            s.category &&
+            s.sessionDate &&
+            (canUsePesasInGeneral || s.sessionType !== "PESAS")
+        )
+      );
     }
     setLoadingRecent(false);
-  }, [selectedCategory]);
+  }, [canUsePesasInGeneral, selectedCategory]);
 
   const loadAttendance = useCallback(async () => {
     setLoadingPlayers(true);
@@ -162,28 +212,32 @@ function AsistenciasPageContent() {
     loadAttendance();
   }, [loadAttendance]);
 
+  useEffect(() => {
+    if (!canUsePesasInGeneral && sessionType === "PESAS") {
+      setSessionType("TURNO_MANANA");
+      setPinnedSessionId(null);
+      setCurrentSessionId(null);
+    }
+  }, [canUsePesasInGeneral, sessionType]);
+
   function handleGenderChange(g: PlayerGender) {
     setSelectedGender(g);
-    setSaved(false);
   }
 
   function handleCategoryChange(cat: Category) {
     setSelectedCategory(cat);
     setPinnedSessionId(null);
     setCurrentSessionId(null);
-    setSaved(false);
   }
 
   function handleDateChange(date: string) {
     setSessionDate(date);
     setPinnedSessionId(null);
-    setSaved(false);
   }
 
   function handleSessionTypeChange(type: SessionType) {
     setSessionType(type);
     setPinnedSessionId(null);
-    setSaved(false);
   }
 
   function openRecentSession(s: RecentSession) {
@@ -192,71 +246,24 @@ function AsistenciasPageContent() {
     setSessionDate(/^\d{4}-\d{2}-\d{2}$/.test(dateOnly) ? dateOnly : sessionDate);
     setSessionType(s.sessionType);
     setPinnedSessionId(s.id);
-    setSaved(false);
   }
 
-  function updateRecord(
-    playerId: string,
-    field: keyof PlayerRecord,
-    value: PlayerRecord[keyof PlayerRecord]
-  ) {
-    setRecords((prev) =>
-      prev.map((r) => {
-        if (r.playerId !== playerId) return r;
-        const updated = { ...r, [field]: value };
-        if (field === "status") {
-          if (value !== "ATTENDED") updated.performanceScore = null;
-          if (value !== "ABSENT_JUSTIFIED") updated.absenceReason = "";
-        }
-        return updated;
-      })
-    );
-    setSaved(false);
-  }
+  async function persistRecord(record: PlayerRecord) {
+    if (readOnly) return;
+    if (!record.status && !currentSessionId) return;
 
-  function markAll(status: "ATTENDED" | "ABSENT_UNJUSTIFIED") {
-    setRecords((prev) =>
-      prev.map((r) => ({
-        ...r,
-        status,
-        performanceScore: status !== "ATTENDED" ? null : r.performanceScore,
-        absenceReason: "",
-      }))
-    );
-    setSaved(false);
-  }
-
-  async function handleSave() {
-    const toSave = records.filter((r) => r.status !== null);
-    const toClear = records.filter((r) => r.status === null).map((r) => r.playerId);
-    const scoreError = validateTrainingAttendanceRecords(toSave);
-    if (scoreError) {
-      setError(scoreError);
-      return;
-    }
-
-    if (toSave.length === 0 && toClear.length === 0) {
-      setError("No hay cambios para guardar");
-      return;
-    }
-
-    if (!currentSessionId && toSave.length === 0) {
-      setError("Marcá al menos una asistencia para guardar");
-      return;
-    }
-
-    setSaving(true);
+    setSavingPlayerId(record.playerId);
     setError("");
 
     let sessionId = currentSessionId;
-    if (!sessionId) {
+    if (!sessionId && record.status) {
       const session = await ensureAttendanceSession(
         selectedCategory,
         sessionDate,
         sessionType
       );
       if (!("id" in session)) {
-        setSaving(false);
+        setSavingPlayerId(null);
         setError(session.error);
         return;
       }
@@ -268,26 +275,54 @@ function AsistenciasPageContent() {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        records: toSave.map((r) => ({
-          playerId: r.playerId,
-          status: r.status,
-          performanceScore: r.status === "ATTENDED" ? r.performanceScore : null,
-          absenceReason: r.status === "ABSENT_JUSTIFIED" ? r.absenceReason : null,
-        })),
-        clearPlayerIds: toClear,
+        records: record.status
+          ? [
+              {
+                playerId: record.playerId,
+                status: record.status,
+                performanceScore: null,
+                absenceReason:
+                  record.status !== "ATTENDED" ? record.absenceReason : null,
+              },
+            ]
+          : [],
+        clearPlayerIds: record.status ? [] : [record.playerId],
       }),
     });
-    setSaving(false);
+    setSavingPlayerId(null);
     if (!res.ok) {
       setError("Error al guardar la asistencia");
       return;
     }
-    setSaved(true);
     loadRecent();
-    loadAttendance();
   }
 
-  const SESSION_TYPE_LABEL = SESSION_TYPE_SHORT;
+  function updateStatus(playerId: string, status: PlayerRecord["status"]) {
+    const current = records.find((r) => r.playerId === playerId);
+    if (!current || current.status === status) return;
+
+    const updated: PlayerRecord = {
+      ...current,
+      status,
+      performanceScore: null,
+      absenceReason: status && status !== "ATTENDED" ? current.absenceReason : "",
+    };
+
+    setRecords((prev) => prev.map((r) => (r.playerId === playerId ? updated : r)));
+    persistRecord(updated);
+  }
+
+  function updateAbsenceReason(playerId: string, value: string) {
+    setRecords((prev) =>
+      prev.map((r) => (r.playerId === playerId ? { ...r, absenceReason: value } : r))
+    );
+  }
+
+  function persistAbsenceReason(playerId: string) {
+    const record = records.find((r) => r.playerId === playerId);
+    if (!record || !record.status || record.status === "ATTENDED") return;
+    persistRecord(record);
+  }
 
   if (!canAccessAsistenciasSheet(role)) {
     return <LoadingState message="Redirigiendo..." />;
@@ -297,13 +332,17 @@ function AsistenciasPageContent() {
     <PageShell width="lg">
       <PageHeader
         title="Asistencia General"
-        description="Registro por categoría — turno mañana, tarde o pesas (asistencia y puntaje)"
+        description={
+          canUsePesasInGeneral
+            ? "Registro por categoría según la temporada configurada"
+            : "Registro por categoría según la temporada configurada"
+        }
       />
 
-      {readOnly && role === "COMISION" && (
+      {readOnly && hasComisionLikeRole(role) && (
         <Alert>
           <AlertDescription>
-            Solo lectura: tu usuario de comisión puede consultar asistencias y puntajes pero no modificarlos.
+            Solo lectura: tu usuario de comisión puede consultar asistencias pero no modificarlas.
           </AlertDescription>
         </Alert>
       )}
@@ -313,7 +352,7 @@ function AsistenciasPageContent() {
           <CardTitle className="text-sm font-semibold">
             {CATEGORY_LABELS[selectedCategory]} ·{" "}
             {PLAYER_GENDER_OPTIONS.find((g) => g.value === selectedGender)?.label} ·{" "}
-            {SESSION_TYPE_LABEL[sessionType]}
+            {activeSessionLabel}
             {sessionDate && (
               <span className="text-muted-foreground font-normal ml-1 capitalize">
                 — {formatSessionDate(sessionDate, "d MMM yyyy", { locale: es })}
@@ -360,7 +399,7 @@ function AsistenciasPageContent() {
             </div>
             <div className="flex-1 space-y-1">
               <FilterChipGroup label="Entrenamiento">
-                {TRAINING_SESSION_OPTIONS.map((opt) => (
+                {sessionOptions.map((opt) => (
                   <FilterChip
                     key={opt.value}
                     active={sessionType === opt.value}
@@ -370,12 +409,9 @@ function AsistenciasPageContent() {
                   </FilterChip>
                 ))}
               </FilterChipGroup>
-              <p className="text-[11px] text-muted-foreground pt-0.5">
-                Pesas es un entrenamiento igual que mañana o tarde: marcá asistencia y puntaje 1–4.
-              </p>
               {!currentSessionId && !readOnly && records.length > 0 && (
                 <p className="text-[11px] text-muted-foreground pt-1">
-                  Sin registro para esta fecha y turno. Marcá asistencia y guardá para crear la sesión.
+                  Sin registro para esta fecha y turno. La sesión se crea al marcar la primera asistencia.
                 </p>
               )}
             </div>
@@ -397,15 +433,12 @@ function AsistenciasPageContent() {
           ) : (
             <AttendancePlayerList
               records={records}
-              onUpdate={updateRecord}
-              onMarkAll={markAll}
-              saving={saving}
-              saved={saved}
+              onStatusChange={updateStatus}
+              onAbsenceReasonChange={updateAbsenceReason}
+              onAbsenceReasonBlur={persistAbsenceReason}
+              savingPlayerId={savingPlayerId}
               error={error}
-              onSave={handleSave}
               readOnly={readOnly}
-              hideScores={hideScores}
-              requireScore
             />
           )}
         </CardContent>
@@ -447,7 +480,7 @@ function AsistenciasPageContent() {
                     </div>
                     <div className="flex items-center gap-3">
                       <Badge variant="outline" className="text-xs">
-                        {SESSION_TYPE_LABEL[s.sessionType]}
+                        {sessionLabelByType.get(s.sessionType) ?? SESSION_TYPE_SHORT[s.sessionType]}
                       </Badge>
                       <span className="text-xs text-muted-foreground">{s._count.records} registros</span>
                       {isActive && (

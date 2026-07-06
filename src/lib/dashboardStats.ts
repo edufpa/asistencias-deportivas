@@ -34,7 +34,6 @@ export async function getDashboardKpis() {
           playerId: true,
           sessionId: true,
           status: true,
-          performanceScore: true,
         },
       }),
       prisma.player.count({ where: { playerStatus: "ACTIVE" } }),

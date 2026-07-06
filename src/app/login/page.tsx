@@ -2,16 +2,41 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ClubLogo } from "@/components/ClubLogo";
+import { defaultHomePath, normalizeRole } from "@/lib/permissions";
+
+function resolvePostLoginPath(
+  callbackUrl: string | null,
+  role: string | undefined,
+  requiresAccountSetup: boolean,
+  email: string
+): string {
+  if (requiresAccountSetup) return "/completar-cuenta";
+  if (callbackUrl) {
+    if (callbackUrl.startsWith("/")) return callbackUrl;
+    try {
+      const parsed = new URL(callbackUrl);
+      if (parsed.origin === window.location.origin) {
+        return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+      }
+      return callbackUrl;
+    } catch {
+      // ignore invalid callback
+    }
+  }
+  return defaultHomePath(normalizeRole(role), email);
+}
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -53,11 +78,18 @@ export default function LoginPage() {
 
     if (result?.error) {
       setError("Email o contraseña incorrectos");
-    } else if (preData.requiresAccountSetup) {
-      router.push("/completar-cuenta");
     } else {
-      const dest = preData.role === "PARENT" ? "/mi-perfil" : "/dashboard";
-      router.push(dest);
+      const dest = resolvePostLoginPath(
+        callbackUrl,
+        preData.role,
+        Boolean(preData.requiresAccountSetup),
+        email.trim().toLowerCase()
+      );
+      if (dest.startsWith("http")) {
+        window.location.href = dest;
+      } else {
+        router.push(dest);
+      }
     }
   }
 

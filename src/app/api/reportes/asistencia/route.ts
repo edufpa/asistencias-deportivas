@@ -3,47 +3,14 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getBirthYear, getPlayerCategory, matchesPlayerGender } from "@/lib/player";
 import type { PlayerGender } from "@/lib/player";
-import { TRAINING_SESSION_OPTIONS } from "@/lib/attendance";
+import { getAttendanceSeasonOptionsForReportRange } from "@/lib/attendanceSeason";
+import { resolveReportDateRange } from "@/lib/reportesAsistencia";
 import type { Category, SessionType } from "@prisma/client";
-
-const PRESET_PERIODS = new Set([7, 15, 30, 90, 180, 364]);
-
-function parseDateOnly(value: string | null): Date | null {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  return new Date(`${value}T00:00:00.000Z`);
-}
-
-function resolveDateRange(searchParams: URLSearchParams): { from: Date | null; to: Date | null } {
-  const period = searchParams.get("period");
-  const dateFrom = searchParams.get("dateFrom");
-  const dateTo = searchParams.get("dateTo");
-
-  if (period === "custom") {
-    const from = parseDateOnly(dateFrom);
-    const to = parseDateOnly(dateTo);
-    if (to) to.setUTCHours(23, 59, 59, 999);
-    return { from, to };
-  }
-
-  const days = period ? parseInt(period, 10) : 30;
-  if (!PRESET_PERIODS.has(days)) {
-    return { from: null, to: null };
-  }
-
-  const to = new Date();
-  to.setUTCHours(23, 59, 59, 999);
-  const from = new Date(to);
-  from.setUTCDate(from.getUTCDate() - (days - 1));
-  from.setUTCHours(0, 0, 0, 0);
-
-  return { from, to };
-}
 
 type RecordRow = {
   playerId: string;
   sessionId: string;
   status: string;
-  performanceScore: number | null;
 };
 
 function summarizeRecords(records: RecordRow[]) {
@@ -51,13 +18,6 @@ function summarizeRecords(records: RecordRow[]) {
   const absentJustified = records.filter((r) => r.status === "ABSENT_JUSTIFIED").length;
   const absentUnjustified = records.filter((r) => r.status === "ABSENT_UNJUSTIFIED").length;
   const totalRegistered = attended + absentJustified + absentUnjustified;
-  const scores = records
-    .filter((r) => r.status === "ATTENDED" && r.performanceScore !== null)
-    .map((r) => r.performanceScore as number);
-  const avgScore =
-    scores.length > 0
-      ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
-      : null;
   const attendancePct =
     totalRegistered > 0 ? Math.round((attended / totalRegistered) * 100) : null;
 
@@ -67,7 +27,7 @@ function summarizeRecords(records: RecordRow[]) {
     absentUnjustified,
     totalRegistered,
     attendancePct,
-    avgScore,
+    avgScore: null,
   };
 }
 
@@ -89,7 +49,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "gender es requerido (MALE o FEMALE)" }, { status: 400 });
   }
 
-  const { from, to } = resolveDateRange(searchParams);
+  const { from, to } = await resolveReportDateRange(searchParams);
+  const reportSessionOptions = await getAttendanceSeasonOptionsForReportRange(from, to);
+  const reportSessionTypes = reportSessionOptions.map((opt) => opt.value);
 
   const sessionWhere: Record<string, unknown> = {
     category,
@@ -98,6 +60,8 @@ export async function GET(req: NextRequest) {
 
   if (sessionType && sessionType !== "ALL") {
     sessionWhere.sessionType = sessionType;
+  } else {
+    sessionWhere.sessionType = { in: reportSessionTypes };
   }
   if (from || to) {
     sessionWhere.sessionDate = {
@@ -141,7 +105,7 @@ export async function GET(req: NextRequest) {
 
   const records = await prisma.attendanceRecord.findMany({
     where: { sessionId: { in: sessionIds } },
-    select: { playerId: true, sessionId: true, status: true, performanceScore: true },
+    select: { playerId: true, sessionId: true, status: true },
   });
 
   const playerIds = new Set(players.map((p) => p.id));
@@ -157,7 +121,7 @@ export async function GET(req: NextRequest) {
     const playerRecords = recordsByPlayer.get(p.id) ?? [];
     const overall = summarizeRecords(playerRecords);
 
-    const bySessionType = TRAINING_SESSION_OPTIONS.map(({ value, short }) => {
+    const bySessionType = reportSessionOptions.map(({ value, short }) => {
       const turnRecords = playerRecords.filter(
         (r) => sessionTypeById.get(r.sessionId) === value
       );
@@ -190,7 +154,7 @@ export async function GET(req: NextRequest) {
     if ((b.attendancePct ?? 0) !== (a.attendancePct ?? 0)) {
       return (b.attendancePct ?? 0) - (a.attendancePct ?? 0);
     }
-    return (b.avgScore ?? 0) - (a.avgScore ?? 0);
+    return `${a.paternalLastName} ${a.firstName}`.localeCompare(`${b.paternalLastName} ${b.firstName}`);
   });
 
   const overallStats = summarizeRecords(scopedRecords);
@@ -204,7 +168,7 @@ export async function GET(req: NextRequest) {
     {} as Record<string, number>
   );
 
-  const bySessionType = TRAINING_SESSION_OPTIONS.map(({ value, short }) => {
+  const bySessionType = reportSessionOptions.map(({ value, short }) => {
     const turnRecords = scopedRecords.filter(
       (r) => sessionTypeById.get(r.sessionId) === value
     );

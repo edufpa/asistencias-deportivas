@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getSessionRole, forbidden } from "@/lib/auth-session";
 import { canEditAttendance } from "@/lib/permissions";
 import type { Category } from "@prisma/client";
+import { isSessionTypeEnabledForDate } from "@/lib/attendanceSeason";
+import type { SessionType } from "@/lib/attendance";
 
 function parseDateOnly(value: string): Date | null {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
@@ -34,7 +36,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const ctx = await getSessionRole();
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  if (!canEditAttendance(ctx.role, ctx.email)) return forbidden("No tenés permiso para modificar asistencias o puntajes");
+  if (!canEditAttendance(ctx.role, ctx.email)) return forbidden("No tenés permiso para modificar asistencias");
 
   const body = await req.json();
   const { sessionDate, sessionType, category } = body;
@@ -46,6 +48,14 @@ export async function POST(req: NextRequest) {
   const parsedDate = parseDateOnly(String(sessionDate));
   if (!parsedDate) {
     return NextResponse.json({ error: "Fecha inválida" }, { status: 400 });
+  }
+
+  const enabled = await isSessionTypeEnabledForDate(String(sessionDate), sessionType as SessionType);
+  if (!enabled) {
+    return NextResponse.json(
+      { error: "Ese entrenamiento no está habilitado en la temporada para esta fecha" },
+      { status: 400 }
+    );
   }
 
   const existing = await prisma.attendanceSession.findUnique({

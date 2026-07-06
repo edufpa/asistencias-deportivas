@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { requireServerRole } from "@/lib/require-role";
-import { canAccessDashboard } from "@/lib/permissions";
+import { redirect } from "next/navigation";
+import { getServerRole } from "@/lib/require-role";
+import { canAccessDashboard, usesPesasAttendanceDedicatedUx } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getDashboardKpis } from "@/lib/dashboardStats";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,7 +61,12 @@ async function getPlayersByCategoryAndGender() {
 }
 
 export default async function DashboardPage() {
-  const { session, role } = await requireServerRole(canAccessDashboard, "/mi-perfil");
+  const ctx = await getServerRole();
+  if (!ctx) redirect("/login");
+  if (usesPesasAttendanceDedicatedUx(ctx.email)) redirect("/asistencias/pesas");
+  if (!canAccessDashboard(ctx.role)) redirect("/mi-perfil");
+
+  const { session, role } = ctx;
   const [{ counts, totals, referenceYear }, kpis] = await Promise.all([
     getPlayersByCategoryAndGender(),
     getDashboardKpis(),

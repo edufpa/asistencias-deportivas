@@ -1,6 +1,8 @@
 import type { PlayerGender } from "@/lib/player";
 import { CATEGORIES, CATEGORY_LABELS, PLAYER_GENDER_LABELS } from "@/lib/player";
 import { TRAINING_SESSION_OPTIONS } from "@/lib/attendance";
+import { resolveSeasonReportDateRange } from "@/lib/attendanceSeason";
+import type { SeasonSessionOption } from "@/lib/attendanceSeasonShared";
 import type { Category, SessionType } from "@prisma/client";
 
 export const REPORT_PRESET_PERIODS = new Set([7, 15, 30, 90, 180, 364]);
@@ -10,13 +12,17 @@ export function parseReportDateOnly(value: string | null): Date | null {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
-export function resolveReportDateRange(searchParams: URLSearchParams): {
+export async function resolveReportDateRange(searchParams: URLSearchParams): Promise<{
   from: Date | null;
   to: Date | null;
-} {
+}> {
   const period = searchParams.get("period");
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
+
+  if (period?.startsWith("season:")) {
+    return resolveSeasonReportDateRange(period);
+  }
 
   if (period === "custom") {
     const from = parseReportDateOnly(dateFrom);
@@ -43,7 +49,6 @@ export type RecordRow = {
   playerId: string;
   sessionId: string;
   status: string;
-  performanceScore: number | null;
 };
 
 export function summarizeReportRecords(records: RecordRow[]) {
@@ -51,13 +56,6 @@ export function summarizeReportRecords(records: RecordRow[]) {
   const absentJustified = records.filter((r) => r.status === "ABSENT_JUSTIFIED").length;
   const absentUnjustified = records.filter((r) => r.status === "ABSENT_UNJUSTIFIED").length;
   const totalRegistered = attended + absentJustified + absentUnjustified;
-  const scores = records
-    .filter((r) => r.status === "ATTENDED" && r.performanceScore !== null)
-    .map((r) => r.performanceScore as number);
-  const avgScore =
-    scores.length > 0
-      ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
-      : null;
   const attendancePct =
     totalRegistered > 0 ? Math.round((attended / totalRegistered) * 100) : null;
 
@@ -67,16 +65,17 @@ export function summarizeReportRecords(records: RecordRow[]) {
     absentUnjustified,
     totalRegistered,
     attendancePct,
-    avgScore,
+    avgScore: null,
   };
 }
 
 export function buildBySessionTypeSummary(
   records: RecordRow[],
   sessions: { id: string; sessionType: SessionType }[],
-  sessionTypeById: Map<string, SessionType>
+  sessionTypeById: Map<string, SessionType>,
+  sessionOptions: SeasonSessionOption[] = TRAINING_SESSION_OPTIONS
 ) {
-  return TRAINING_SESSION_OPTIONS.map(({ value, short }) => {
+  return sessionOptions.map(({ value, short }) => {
     const turnRecords = records.filter((r) => sessionTypeById.get(r.sessionId) === value);
     const stats = summarizeReportRecords(turnRecords);
     return {

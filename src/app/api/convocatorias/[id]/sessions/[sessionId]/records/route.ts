@@ -28,7 +28,7 @@ export async function PUT(
   const ctx = await getSessionRole();
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   if (!canEditAttendance(ctx.role, ctx.email)) {
-    return forbidden("No tenés permiso para modificar asistencias o puntajes");
+    return forbidden("No tenés permiso para modificar asistencias");
   }
 
   const { sessionId } = await params;
@@ -49,8 +49,8 @@ export async function PUT(
     }) => ({
       playerId: r.playerId,
       status: r.status as "ATTENDED" | "ABSENT_JUSTIFIED" | "ABSENT_UNJUSTIFIED",
-      performanceScore: r.status === "ATTENDED" ? (r.performanceScore ?? null) : null,
-      absenceReason: r.status === "ABSENT_JUSTIFIED" ? (r.absenceReason ?? null) : null,
+      performanceScore: null,
+      absenceReason: r.status !== "ATTENDED" ? (r.absenceReason ?? null) : null,
     })
   );
 
@@ -90,7 +90,7 @@ export async function DELETE(
   const ctx = await getSessionRole();
   if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   if (!canEditAttendance(ctx.role, ctx.email)) {
-    return forbidden("No tenés permiso para modificar asistencias o puntajes");
+    return forbidden("No tenés permiso para modificar asistencias");
   }
 
   const { sessionId } = await params;

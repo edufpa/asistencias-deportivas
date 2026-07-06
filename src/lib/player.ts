@@ -93,6 +93,11 @@ export function formatPlayerName(p: PlayerNameFields): string {
   return `${apellidos}, ${p.firstName}`;
 }
 
+/** Formato NOMBRE, APELLIDO (solo apellido paterno). */
+export function formatPlayerNameNombreApellido(p: PlayerNameFields): string {
+  return `${p.firstName}, ${p.paternalLastName}`;
+}
+
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
   DNI: "DNI",
   PASAPORTE: "Pasaporte",

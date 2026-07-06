@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getBirthYear, getPlayerCategory, matchesPlayerGender } from "@/lib/player";
 import type { PlayerGender } from "@/lib/player";
+import { getAttendanceSeasonOptionsForReportRange } from "@/lib/attendanceSeason";
 import {
   buildBySessionTypeSummary,
   REPORT_CATEGORIES,
@@ -22,7 +23,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const sessionType = searchParams.get("sessionType");
   const period = searchParams.get("period") ?? "30";
-  const { from, to } = resolveReportDateRange(searchParams);
+  const { from, to } = await resolveReportDateRange(searchParams);
+  const reportSessionOptions = await getAttendanceSeasonOptionsForReportRange(from, to);
+  const reportSessionTypes = reportSessionOptions.map((opt) => opt.value);
 
   const sessionWhere: Record<string, unknown> = {
     category: { not: null },
@@ -31,6 +34,8 @@ export async function GET(req: NextRequest) {
 
   if (sessionType && sessionType !== "ALL") {
     sessionWhere.sessionType = sessionType;
+  } else {
+    sessionWhere.sessionType = { in: reportSessionTypes };
   }
   if (from || to) {
     sessionWhere.sessionDate = {
@@ -72,7 +77,7 @@ export async function GET(req: NextRequest) {
 
   const records = await prisma.attendanceRecord.findMany({
     where: { sessionId: { in: sessions.map((s) => s.id) } },
-    select: { playerId: true, sessionId: true, status: true, performanceScore: true },
+    select: { playerId: true, sessionId: true, status: true },
   });
 
   const rows = REPORT_CATEGORIES.flatMap((category) =>
@@ -89,7 +94,8 @@ export async function GET(req: NextRequest) {
       const bySessionType = buildBySessionTypeSummary(
         scopedRecords,
         categorySessions,
-        sessionTypeById
+        sessionTypeById,
+        reportSessionOptions
       );
 
       return {

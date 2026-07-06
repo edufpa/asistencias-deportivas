@@ -1,0 +1,29 @@
+{
+  "name": "@regatas/asistencias-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP server for Regatas Lima Asistencias Deportivas",
+  "bin": {
+    "asistencias-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@prisma/adapter-pg": "^7.7.0",
+    "@prisma/client": "^7.7.0",
+    "dotenv": "^17.4.1",
+    "pg": "^8.20.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/pg": "^8.20.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5"
+  }
+}

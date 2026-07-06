@@ -55,7 +55,26 @@ export const ALL_ACCESS_LEVELS = Object.keys(ACCESS_LEVEL_LABELS) as EventAccess
 
 export function formatTimeRange(startTime?: string | null, endTime?: string | null): string {
   if (!startTime) return "";
-  return endTime ? `${startTime} ? ${endTime}` : startTime;
+  return endTime ? `${startTime} - ${endTime}` : startTime;
+}
+
+export function addHoursToTime(startTime: string, hours: number): string | null {
+  if (!startTime || !hours || hours <= 0) return null;
+  const [h, m] = startTime.split(":").map(Number);
+  const total = h * 60 + m + Math.round(hours * 60);
+  const eh = Math.floor(total / 60) % 24;
+  const em = total % 60;
+  return `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
+}
+
+export function durationHoursFromRange(startTime?: string | null, endTime?: string | null): string {
+  if (!startTime || !endTime) return "";
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+  const diff = eh * 60 + em - (sh * 60 + sm);
+  if (diff <= 0) return "";
+  const hours = diff / 60;
+  return Number.isInteger(hours) ? String(hours) : hours.toFixed(1).replace(/\.0$/, "");
 }
 
 export function formatLocationLabel(location?: EventLocation | null, locationOther?: string | null): string {
@@ -76,6 +95,62 @@ export function formatMonthLabel(monthStr: string): string {
   const [y, m] = monthStr.split("-").map(Number);
   const d = new Date(y, m - 1, 1);
   return d.toLocaleDateString("es-PE", { month: "long", year: "numeric" });
+}
+
+export function getCalendarMonthRange(monthStr: string): { start: Date; end: Date } {
+  const [y, m] = monthStr.split("-").map(Number);
+  return {
+    start: new Date(Date.UTC(y, m - 1, 1)),
+    end: new Date(Date.UTC(y, m, 0, 23, 59, 59)),
+  };
+}
+
+export function calendarEventsOverlappingMonthWhere(monthStart: Date, monthEnd: Date) {
+  return {
+    startDate: { lte: monthEnd },
+    OR: [
+      { endDate: { gte: monthStart } },
+      { endDate: null, startDate: { gte: monthStart } },
+    ],
+  };
+}
+
+function parseIsoDateParts(iso: string): { year: number; month: number; day: number } {
+  const [year, month, day] = iso.slice(0, 10).split("-").map(Number);
+  return { year, month, day };
+}
+
+/** Repite cada evento en todos los d?as de su rango dentro del mes visible. */
+export function groupCalendarEventsByDay<T extends { startDate: string; endDate: string | null }>(
+  events: T[],
+  year: number,
+  month: number
+): Record<number, T[]> {
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd = new Date(year, month - 1, daysInMonth);
+  const byDay: Record<number, T[]> = {};
+
+  for (const ev of events) {
+    const startParts = parseIsoDateParts(ev.startDate);
+    const hasRange =
+      !!ev.endDate && ev.endDate.slice(0, 10) !== ev.startDate.slice(0, 10);
+    const endParts = hasRange ? parseIsoDateParts(ev.endDate!) : startParts;
+
+    const cursor = new Date(startParts.year, startParts.month - 1, startParts.day);
+    const rangeEnd = new Date(endParts.year, endParts.month - 1, endParts.day);
+
+    while (cursor <= rangeEnd) {
+      if (cursor >= monthStart && cursor <= monthEnd) {
+        const day = cursor.getDate();
+        if (!byDay[day]) byDay[day] = [];
+        byDay[day].push(ev);
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+
+  return byDay;
 }
 
 export function buildGoogleCalendarUrl(event: {

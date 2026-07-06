@@ -14,6 +14,8 @@
     "db:link-users": "node scripts/create-player-users.js",
     "db:import-players": "node scripts/import-players-xls.js",
     "db:studio": "prisma studio",
+    "mcp:build": "cd mcp && npm install && npm run build",
+    "mcp:dev": "cd mcp && npm run dev",
     "postinstall": "prisma generate"
   },
   "prisma": {
@@ -32,6 +34,8 @@
     "lucide-react": "^1.7.0",
     "next": "16.2.2",
     "next-auth": "^5.0.0-beta.30",
+    "pdf-lib": "^1.17.1",
+    "@modelcontextprotocol/sdk": "^1.12.1",
     "pg": "^8.20.0",
     "prisma": "^7.7.0",
     "react": "19.2.4",

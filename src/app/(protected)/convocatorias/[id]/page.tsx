@@ -199,6 +199,11 @@ export default function ConvocatoriaDetailPage() {
               Partidos
             </Button>
           </Link>
+          <Link href={`/convocatorias/${id}/informes`}>
+            <Button variant="outline" className="text-violet-600 border-violet-300 hover:bg-violet-50">
+              Informes
+            </Button>
+          </Link>
           <Button type="button" variant="outline" onClick={openEdit}>
             Editar datos
           </Button>

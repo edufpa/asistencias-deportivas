@@ -26,7 +26,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { role } = ctx;
-  if (role !== "COMISION" && role !== "COACH" && role !== "SUPER_ADMIN") {
+  if (role !== "COMISION" && role !== "DELEGADO" && role !== "COACH" && role !== "SUPER_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -60,7 +60,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
   if (!ctx) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { role } = ctx;
-  if (role !== "COMISION" && role !== "SUPER_ADMIN") {
+  if (role !== "COMISION" && role !== "DELEGADO" && role !== "SUPER_ADMIN") {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAppRole } from "@/hooks/useAppRole";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,8 +42,13 @@ import {
   formatMonthLabel,
   formatTimeRange,
   formatLocationLabel,
+  addHoursToTime,
+  durationHoursFromRange,
   buildGoogleCalendarUrl,
   buildICSContent,
+  getCalendarMonthRange,
+  calendarEventsOverlappingMonthWhere,
+  groupCalendarEventsByDay,
 } from "@/lib/calendario";
 import { EventCategory, EventAccessLevel, EventLocation } from "@prisma/client";
 import {
@@ -87,7 +92,7 @@ const EMPTY_FORM = {
   startDate: "",
   endDate: "",
   startTime: "",
-  endTime: "",
+  durationHours: "",
   category: "" as EventCategory | "",
   accessLevels: [] as EventAccessLevel[],
 };
@@ -118,10 +123,48 @@ function fmtDate(iso: string, opts: Intl.DateTimeFormatOptions): string {
   return new Date(y, m - 1, d).toLocaleDateString("es-PE", opts);
 }
 
+function getEventLineClamp(eventCount: number): number {
+  if (eventCount <= 2) return 7;
+  if (eventCount === 3) return 6;
+  return 5;
+}
+
+function eventLineClampClass(lineClamp: number): string {
+  if (lineClamp >= 7) return "line-clamp-[7]";
+  if (lineClamp === 6) return "line-clamp-6";
+  return "line-clamp-5";
+}
+
+type CalendarCell =
+  | { type: "empty" }
+  | { type: "day"; day: number; events: CalendarEvent[] };
+
+function buildCalendarWeeks(
+  firstDay: number,
+  daysInMonth: number,
+  eventsByDay: Record<number, CalendarEvent[]>
+): CalendarCell[][] {
+  const cells: CalendarCell[] = [];
+  for (let i = 0; i < firstDay; i++) cells.push({ type: "empty" });
+  for (let day = 1; day <= daysInMonth; day++) {
+    cells.push({ type: "day", day, events: eventsByDay[day] ?? [] });
+  }
+  while (cells.length % 7 !== 0) cells.push({ type: "empty" });
+
+  const weeks: CalendarCell[][] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    weeks.push(cells.slice(i, i + 7));
+  }
+  while (weeks.length < 6) {
+    weeks.push(Array.from({ length: 7 }, () => ({ type: "empty" as const })));
+  }
+  return weeks;
+}
+
 export default function CalendarioPage() {
   const role = useAppRole();
-  const canCreate = role === "SUPER_ADMIN" || role === "COMISION" || role === "COACH";
-  const canDelete = role === "SUPER_ADMIN" || role === "COMISION";
+  const canCreate = role === "SUPER_ADMIN" || role === "COMISION" || role === "DELEGADO" || role === "COACH";
+  const canDelete = role === "SUPER_ADMIN" || role === "COMISION" || role === "DELEGADO";
 
   const months = getMonthsRange();
   const currentActualMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
@@ -129,57 +172,113 @@ export default function CalendarioPage() {
 
   const [activeMonth, setActiveMonth] = useState(defaultMonth);
   const [view, setView] = useState<"calendar" | "table">("calendar");
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [eventsCache, setEventsCache] = useState<Record<string, CalendarEvent[]>>({});
+  const [loadingKey, setLoadingKey] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<EventCategory | "">("");
   const [showForm, setShowForm] = useState(false);
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [multiDay, setMultiDay] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
+  const eventsKey = filterCategory ? `${activeMonth}:${filterCategory}` : activeMonth;
+  const events = eventsCache[eventsKey] ?? [];
+  const loading = loadingKey === eventsKey;
+  const eventsCacheRef = useRef(eventsCache);
+  eventsCacheRef.current = eventsCache;
+
   const fetchEvents = useCallback(async () => {
-    setLoading(true);
+    setLoadingKey(eventsKey);
     try {
       const params = new URLSearchParams({ month: activeMonth });
       if (filterCategory) params.set("category", filterCategory);
       const res = await fetch(`/api/calendario?${params}`);
       const data = await res.json();
-      setEvents(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setEventsCache((prev) => ({ ...prev, [eventsKey]: list }));
     } finally {
-      setLoading(false);
+      setLoadingKey((current) => (current === eventsKey ? null : current));
     }
-  }, [activeMonth, filterCategory]);
+  }, [activeMonth, filterCategory, eventsKey]);
 
-  useEffect(() => { fetchEvents(); }, [fetchEvents]);
+  useEffect(() => {
+    if (eventsCacheRef.current[eventsKey]) return;
+
+    let cancelled = false;
+    setLoadingKey(eventsKey);
+
+    (async () => {
+      try {
+        const params = new URLSearchParams({ month: activeMonth });
+        if (filterCategory) params.set("category", filterCategory);
+        const res = await fetch(`/api/calendario?${params}`);
+        const data = await res.json();
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        setEventsCache((prev) => ({ ...prev, [eventsKey]: list }));
+      } finally {
+        if (!cancelled) {
+          setLoadingKey((current) => (current === eventsKey ? null : current));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [eventsKey, activeMonth, filterCategory]);
 
   const monthIdx = months.indexOf(activeMonth);
 
   function openCreate() {
     setEditEvent(null);
+    setMultiDay(false);
     setForm({ ...EMPTY_FORM, startDate: `${activeMonth}-01` });
     setShowForm(true);
   }
 
   function openEdit(ev: CalendarEvent) {
     setEditEvent(ev);
+    const hasMultiDay = !!(ev.endDate && ev.endDate.slice(0, 10) !== ev.startDate.slice(0, 10));
+    setMultiDay(hasMultiDay);
     setForm({
       title: ev.title,
       description: ev.description ?? "",
       location: ev.location ?? "",
       locationOther: ev.locationOther ?? "",
       startDate: ev.startDate.slice(0, 10),
-      endDate: ev.endDate ? ev.endDate.slice(0, 10) : "",
+      endDate: hasMultiDay && ev.endDate ? ev.endDate.slice(0, 10) : "",
       startTime: ev.startTime ?? "",
-      endTime: ev.endTime ?? "",
+      durationHours: durationHoursFromRange(ev.startTime, ev.endTime),
       category: ev.category,
       accessLevels: ev.accessLevels,
     });
     setShowForm(true);
   }
 
+  function buildPayload() {
+    const duration = parseFloat(form.durationHours);
+    const endTime = form.startTime && !Number.isNaN(duration) && duration > 0
+      ? addHoursToTime(form.startTime, duration)
+      : null;
+    return {
+      title: form.title,
+      description: form.description,
+      location: form.location,
+      locationOther: form.locationOther,
+      startDate: form.startDate,
+      endDate: multiDay && form.endDate ? form.endDate : "",
+      startTime: form.startTime || "",
+      endTime: endTime || "",
+      category: form.category,
+      accessLevels: form.accessLevels,
+    };
+  }
+
   async function handleSave() {
     if (!form.title || !form.startDate || !form.category || !form.accessLevels.length) return;
+    if (multiDay && form.endDate && form.endDate < form.startDate) return;
     setSaving(true);
     try {
       const url = editEvent ? `/api/calendario/${editEvent.id}` : "/api/calendario";
@@ -187,7 +286,7 @@ export default function CalendarioPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(buildPayload()),
       });
       if (res.ok) {
         setShowForm(false);
@@ -225,16 +324,17 @@ export default function CalendarioPage() {
     URL.revokeObjectURL(url);
   }
 
-  // Group events by day - parse date string directly to avoid UTC offset
-  const eventsByDay: Record<number, CalendarEvent[]> = {};
-  for (const ev of events) {
-    const day = parseInt(ev.startDate.slice(8, 10), 10);
-    if (!eventsByDay[day]) eventsByDay[day] = [];
-    eventsByDay[day].push(ev);
-  }
-
+  // Group events by day, including multi-day ranges
   const { firstDay, daysInMonth, year, month } = getDaysInMonth(activeMonth);
+  const eventsByDay = useMemo(
+    () => groupCalendarEventsByDay(events, year, month),
+    [events, year, month]
+  );
   const today = new Date();
+  const calendarWeeks = useMemo(
+    () => buildCalendarWeeks(firstDay, daysInMonth, eventsByDay),
+    [firstDay, daysInMonth, eventsByDay]
+  );
 
   return (
     <div className="space-y-6">
@@ -303,39 +403,73 @@ export default function CalendarioPage() {
         <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
           <div className="grid grid-cols-7 border-b">
             {["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"].map((d) => (
-              <div key={d} className="py-2 text-center text-xs font-semibold text-muted-foreground">{d}</div>
+              <div key={d} className="py-3 text-center text-sm font-semibold text-muted-foreground">{d}</div>
             ))}
           </div>
-          <div className="grid grid-cols-7 auto-rows-[minmax(100px,auto)]">
-            {Array.from({ length: firstDay }).map((_, i) => (
-              <div key={`empty-${i}`} className="border-b border-r bg-gray-50/50" />
-            ))}
-            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
-              const isToday =
-                today.getFullYear() === year &&
-                today.getMonth() + 1 === month &&
-                today.getDate() === day;
-              const dayEvents = eventsByDay[day] ?? [];
-              return (
-                <div key={day} className={cn("border-b border-r p-1.5 min-h-[100px]", isToday && "bg-blue-50/60")}>
-                  <span className={cn("text-xs font-medium inline-flex h-6 w-6 items-center justify-center rounded-full", isToday ? "bg-primary text-white" : "text-gray-700")}>
-                    {day}
-                  </span>
-                  <div className="mt-0.5 space-y-0.5">
-                    {dayEvents.map((ev) => (
-                      <button
-                        key={ev.id}
-                        onClick={() => setSelectedEvent(ev)}
-                        className={cn("w-full text-left text-[10px] font-medium px-1.5 py-0.5 rounded border truncate", EVENT_CATEGORY_COLORS[ev.category])}
+          <div className={cn("divide-y transition-opacity duration-150", loading && "opacity-70")}>
+            {calendarWeeks.map((week, weekIdx) => (
+                <div
+                  key={`week-${weekIdx}`}
+                  className="grid grid-cols-7"
+                >
+                  {week.map((cell, cellIdx) => {
+                    if (cell.type === "empty") {
+                      return (
+                        <div
+                          key={`empty-${weekIdx}-${cellIdx}`}
+                          className="border-r bg-gray-50/50 min-h-[2.25rem]"
+                        />
+                      );
+                    }
+
+                    const { day, events: dayEvents } = cell;
+                    const isToday =
+                      today.getFullYear() === year &&
+                      today.getMonth() + 1 === month &&
+                      today.getDate() === day;
+                    const lineClamp = getEventLineClamp(dayEvents.length);
+                    const lineClampClass = eventLineClampClass(lineClamp);
+
+                    return (
+                      <div
+                        key={day}
+                        className={cn(
+                          "border-r px-2 pt-1.5 pb-1 flex flex-col",
+                          isToday && "bg-blue-50/60"
+                        )}
                       >
-                        {ev.startTime && <span className="opacity-70 mr-1">{ev.startTime}</span>}
-                        {ev.title}
-                      </button>
-                    ))}
-                  </div>
+                        <span
+                          className={cn(
+                            "text-sm font-medium inline-flex h-6 w-6 items-center justify-center rounded-full shrink-0",
+                            isToday ? "bg-primary text-white" : "text-gray-700"
+                          )}
+                        >
+                          {day}
+                        </span>
+                        {dayEvents.length > 0 && (
+                          <div className="mt-0.5 space-y-0.5">
+                            {dayEvents.map((ev) => (
+                              <button
+                                key={ev.id}
+                                onClick={() => setSelectedEvent(ev)}
+                                className={cn(
+                                  "w-full text-left text-[11px] font-medium px-1.5 py-0.5 rounded border leading-snug whitespace-normal break-words",
+                                  lineClampClass,
+                                  EVENT_CATEGORY_COLORS[ev.category]
+                                )}
+                                title={ev.title}
+                              >
+                                {ev.startTime && <span className="opacity-70 mr-1">{ev.startTime}</span>}
+                                {ev.title}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+            ))}
           </div>
         </div>
       )}
@@ -519,47 +653,78 @@ export default function CalendarioPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
               <div>
-                <Label htmlFor="startDate">Fecha inicio *</Label>
+                <Label htmlFor="startDate">Fecha *</Label>
                 <Input
                   id="startDate"
                   type="date"
                   value={form.startDate}
                   min={`${MIN_MONTH}-01`}
-                  onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({
+                    ...f,
+                    startDate: e.target.value,
+                    endDate: f.endDate && f.endDate < e.target.value ? e.target.value : f.endDate,
+                  }))}
                 />
               </div>
-              <div>
-                <Label htmlFor="endDate">Fecha fin</Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={form.endDate}
-                  min={form.startDate}
-                  onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={multiDay}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setMultiDay(checked);
+                    if (!checked) {
+                      setForm((f) => ({ ...f, endDate: "" }));
+                    } else {
+                      setForm((f) => ({ ...f, endDate: f.endDate || f.startDate }));
+                    }
+                  }}
+                  className="rounded border-gray-300"
                 />
-              </div>
+                Varios días
+              </label>
+              {multiDay && (
+                <div>
+                  <Label htmlFor="endDate">Fecha fin</Label>
+                  <Input
+                    id="endDate"
+                    type="date"
+                    value={form.endDate}
+                    min={form.startDate}
+                    onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="startTime">Hora inicio</Label>
+                <Label htmlFor="startTime">Hora</Label>
                 <Input
                   id="startTime"
                   type="time"
                   value={form.startTime}
-                  onChange={(e) => setForm((f) => ({ ...f, startTime: e.target.value }))}
+                  onChange={(e) => setForm((f) => ({
+                    ...f,
+                    startTime: e.target.value,
+                    durationHours: e.target.value ? f.durationHours : "",
+                  }))}
                 />
               </div>
               <div>
-                <Label htmlFor="endTime">Hora fin</Label>
+                <Label htmlFor="durationHours">Duración (horas)</Label>
                 <Input
-                  id="endTime"
-                  type="time"
-                  value={form.endTime}
-                  min={form.startTime}
-                  onChange={(e) => setForm((f) => ({ ...f, endTime: e.target.value }))}
+                  id="durationHours"
+                  type="number"
+                  min="0.5"
+                  max="24"
+                  step="0.5"
+                  value={form.durationHours}
+                  onChange={(e) => setForm((f) => ({ ...f, durationHours: e.target.value }))}
+                  placeholder="ej. 2"
+                  disabled={!form.startTime}
                 />
               </div>
             </div>
@@ -643,7 +808,7 @@ export default function CalendarioPage() {
                 value={form.description}
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 placeholder="Detalles adicionales del evento"
-                rows={3}
+                rows={2}
               />
             </div>
           </div>
@@ -652,7 +817,14 @@ export default function CalendarioPage() {
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
             <Button
               onClick={handleSave}
-              disabled={saving || !form.title || !form.startDate || !form.category || form.accessLevels.length === 0}
+              disabled={
+                saving
+                || !form.title
+                || !form.startDate
+                || !form.category
+                || form.accessLevels.length === 0
+                || (multiDay && !!form.endDate && form.endDate < form.startDate)
+              }
             >
               {saving ? "Guardando…" : editEvent ? "Guardar cambios" : "Crear actividad"}
             </Button>

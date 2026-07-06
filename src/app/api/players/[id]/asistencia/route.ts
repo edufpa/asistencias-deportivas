@@ -1,64 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { CATEGORY_LABELS } from "@/lib/player";
-import { SESSION_TYPE_LABEL, TRAINING_SESSION_OPTIONS } from "@/lib/attendance";
 import type { Category, SessionType } from "@prisma/client";
 import { getSessionRole, forbidden, parentCanAccessPlayer } from "@/lib/auth-session";
 import { getCategoryAttendanceComparison } from "@/lib/categoryComparison";
-
-const PRESET_PERIODS = new Set([7, 15, 30, 90, 180, 365]);
-
-function parseDateOnly(value: string | null): Date | null {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  return new Date(`${value}T00:00:00.000Z`);
-}
-
-function resolveDateRange(searchParams: URLSearchParams): { from: Date | null; to: Date | null } {
-  const period = searchParams.get("period");
-  const dateFrom = searchParams.get("dateFrom");
-  const dateTo = searchParams.get("dateTo");
-
-  if (period === "custom") {
-    const from = parseDateOnly(dateFrom);
-    const to = parseDateOnly(dateTo);
-    if (to) to.setUTCHours(23, 59, 59, 999);
-    return { from, to };
-  }
-
-  const days = period ? parseInt(period, 10) : 30;
-  if (!PRESET_PERIODS.has(days)) {
-    return { from: null, to: null };
-  }
-
-  const to = new Date();
-  to.setUTCHours(23, 59, 59, 999);
-  const from = new Date(to);
-  from.setUTCDate(from.getUTCDate() - (days - 1));
-  from.setUTCHours(0, 0, 0, 0);
-
-  return { from, to };
-}
+import { getAttendanceSeasonOptionsForReportRange } from "@/lib/attendanceSeason";
+import { resolveReportDateRange } from "@/lib/reportesAsistencia";
+import type { SeasonSessionOption } from "@/lib/attendanceSeasonShared";
 
 function summarizeBySessionType(
   records: {
     status: string;
-    performanceScore: number | null;
     session: { sessionType: SessionType };
-  }[]
+  }[],
+  sessionOptions: SeasonSessionOption[]
 ) {
-  return TRAINING_SESSION_OPTIONS.map(({ value, short }) => {
+  return sessionOptions.map(({ value, short }) => {
     const subset = records.filter((r) => r.session.sessionType === value);
     const attended = subset.filter((r) => r.status === "ATTENDED").length;
     const justif = subset.filter((r) => r.status === "ABSENT_JUSTIFIED").length;
     const unjustif = subset.filter((r) => r.status === "ABSENT_UNJUSTIFIED").length;
     const total = subset.length;
-    const scores = subset
-      .filter((r) => r.status === "ATTENDED" && r.performanceScore)
-      .map((r) => r.performanceScore as number);
-    const avgScore =
-      scores.length > 0
-        ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
-        : null;
 
     return {
       sessionType: value,
@@ -68,7 +30,7 @@ function summarizeBySessionType(
       justif,
       unjustif,
       attendancePct: total > 0 ? Math.round((attended / total) * 100) : null,
-      avgScore,
+      avgScore: null,
     };
   });
 }
@@ -86,7 +48,13 @@ export async function GET(
     return forbidden("No tenés acceso a este jugador");
   }
 
-  const { from, to } = resolveDateRange(new URL(req.url).searchParams);
+  const { searchParams } = new URL(req.url);
+  const { from, to } = await resolveReportDateRange(searchParams);
+  const reportSessionOptions = await getAttendanceSeasonOptionsForReportRange(from, to);
+  const reportSessionTypes = reportSessionOptions.map((opt) => opt.value);
+  const sessionLabelByType = new Map(
+    reportSessionOptions.map((opt) => [opt.value, opt.short])
+  );
 
   const player = await prisma.player.findUnique({
     where: { id: playerId },
@@ -107,6 +75,7 @@ export async function GET(
       session: {
         convocatoriaId: null,
         category: { not: null },
+        sessionType: { in: reportSessionTypes },
         ...(from || to
           ? {
               sessionDate: {
@@ -130,13 +99,13 @@ export async function GET(
       sessionId: r.sessionId,
       date: dateKey,
       sessionType: r.session.sessionType,
-      sessionLabel: SESSION_TYPE_LABEL[r.session.sessionType],
+      sessionLabel: sessionLabelByType.get(r.session.sessionType) ?? r.session.sessionType,
       category: r.session.category as Category,
       categoryLabel: r.session.category
         ? CATEGORY_LABELS[r.session.category as keyof typeof CATEGORY_LABELS]
         : "",
       status: r.status,
-      performanceScore: r.performanceScore,
+      performanceScore: null,
       absenceReason: r.absenceReason,
     };
   });
@@ -145,13 +114,7 @@ export async function GET(
   const justif = records.filter((r) => r.status === "ABSENT_JUSTIFIED").length;
   const unjustif = records.filter((r) => r.status === "ABSENT_UNJUSTIFIED").length;
   const total = records.length;
-  const scores = records
-    .filter((r) => r.status === "ATTENDED" && r.performanceScore)
-    .map((r) => r.performanceScore as number);
-  const avgScore =
-    scores.length > 0
-      ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
-      : null;
+  const avgScore = null;
 
   const chronological = [...rows].reverse();
   let cumAttended = 0;
@@ -171,12 +134,12 @@ export async function GET(
   return NextResponse.json({
     player,
     summary: { attended, justif, unjustif, total, avgScore },
-    bySessionType: summarizeBySessionType(records),
+    bySessionType: summarizeBySessionType(records, reportSessionOptions),
     rows,
     chartSeries,
     categoryComparison,
     filter: {
-      period: new URL(req.url).searchParams.get("period") ?? "30",
+      period: searchParams.get("period") ?? "30",
       dateFrom: from?.toISOString().split("T")[0] ?? null,
       dateTo: to?.toISOString().split("T")[0] ?? null,
     },

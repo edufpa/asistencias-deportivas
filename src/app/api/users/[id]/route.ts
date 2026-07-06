@@ -9,7 +9,7 @@ import {
   normalizeRole,
 } from "@/lib/permissions";
 
-const VALID_ROLES = new Set<string>(["SUPER_ADMIN", "COMISION", "COACH", "PARENT"]);
+const VALID_ROLES = new Set<string>(["SUPER_ADMIN", "COMISION", "DELEGADO", "COACH", "PARENT"]);
 
 export async function PUT(
   req: NextRequest,

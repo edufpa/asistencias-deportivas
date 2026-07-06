@@ -43,15 +43,8 @@ const PERIOD_OPTIONS: { value: PeriodPreset; label: string }[] = [
 
 const STATUS_CONFIG = {
   ATTENDED: { label: "Asistió", className: "bg-green-100 text-green-800 border-green-200" },
-  ABSENT_JUSTIFIED: { label: "Justificada", className: "bg-yellow-100 text-yellow-800 border-yellow-200" },
-  ABSENT_UNJUSTIFIED: { label: "Injustificada", className: "bg-red-100 text-red-800 border-red-200" },
-};
-
-const SCORE_STYLE: Record<number, string> = {
-  1: "bg-red-500 text-white",
-  2: "bg-yellow-500 text-white",
-  3: "bg-blue-500 text-white",
-  4: "bg-green-600 text-white",
+  ABSENT_JUSTIFIED: { label: "Falta", className: "bg-red-100 text-red-800 border-red-200" },
+  ABSENT_UNJUSTIFIED: { label: "Falta", className: "bg-red-100 text-red-800 border-red-200" },
 };
 
 function attendancePctTone(pct: number | null): "success" | "default" | "muted" {
@@ -98,10 +91,8 @@ type AsistenciaData = {
 
 export function PlayerAsistenciaPanel({
   playerId,
-  hideScores = false,
 }: {
   playerId: string;
-  hideScores?: boolean;
 }) {
   const [data, setData] = useState<AsistenciaData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -165,14 +156,10 @@ export function PlayerAsistenciaPanel({
       </FilterPanel>
 
       {summary && (
-        <StatGrid className="sm:grid-cols-3 lg:grid-cols-5">
+        <StatGrid className="sm:grid-cols-3">
           <StatCard label="Asistencia" value={attendancePct !== null ? `${attendancePct}%` : "—"} tone={attendancePctTone(attendancePct)} align="center" />
           <StatCard label="Asistió" value={String(summary.attended)} tone="success" align="center" />
-          <StatCard label="Just." value={String(summary.justif)} align="center" />
-          <StatCard label="Injust." value={String(summary.unjustif)} align="center" />
-          {!hideScores && (
-            <StatCard label="Prom. puntaje" value={summary.avgScore !== null ? String(summary.avgScore) : "—"} tone={summary.avgScore ? "success" : "muted"} align="center" />
-          )}
+          <StatCard label="Faltas" value={String(summary.justif + summary.unjustif)} align="center" />
         </StatGrid>
       )}
 
@@ -188,9 +175,7 @@ export function PlayerAsistenciaPanel({
                     <TableHead className="text-center">Registros</TableHead>
                     <TableHead className="text-center">Asistencia</TableHead>
                     <TableHead className="text-center">Asistió</TableHead>
-                    <TableHead className="text-center">Just.</TableHead>
-                    <TableHead className="text-center">Injust.</TableHead>
-                    {!hideScores && <TableHead className="text-center">Prom. puntaje</TableHead>}
+                    <TableHead className="text-center">Faltas</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -204,17 +189,7 @@ export function PlayerAsistenciaPanel({
                         </span>
                       </TableCell>
                       <TableCell className="text-center text-sm text-green-600">{row.attended}</TableCell>
-                      <TableCell className="text-center text-sm text-yellow-600">{row.justif}</TableCell>
-                      <TableCell className="text-center text-sm text-red-600">{row.unjustif}</TableCell>
-                      {!hideScores && (
-                        <TableCell className="text-center">
-                          {row.avgScore !== null ? (
-                            <span className={cn("inline-flex items-center justify-center min-w-8 h-8 rounded-full text-xs font-bold", SCORE_STYLE[Math.round(row.avgScore)])}>
-                              {row.avgScore}
-                            </span>
-                          ) : "—"}
-                        </TableCell>
-                      )}
+                      <TableCell className="text-center text-sm text-red-600">{row.justif + row.unjustif}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -237,7 +212,6 @@ export function PlayerAsistenciaPanel({
                     <TableHead>Entrenamiento</TableHead>
                     <TableHead>Categoría</TableHead>
                     <TableHead className="text-center">Asistencia</TableHead>
-                    {!hideScores && <TableHead className="text-center w-24">Puntaje</TableHead>}
                     <TableHead>Motivo</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -258,17 +232,8 @@ export function PlayerAsistenciaPanel({
                             {cfg.label}
                           </span>
                         </TableCell>
-                        {!hideScores && (
-                          <TableCell className="text-center">
-                            {row.status === "ATTENDED" && row.performanceScore ? (
-                              <span className={cn("inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold", SCORE_STYLE[row.performanceScore])}>
-                                {row.performanceScore}
-                              </span>
-                            ) : "—"}
-                          </TableCell>
-                        )}
                         <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-                          {row.status === "ABSENT_JUSTIFIED" && row.absenceReason ? row.absenceReason : "—"}
+                          {row.status !== "ATTENDED" && row.absenceReason ? row.absenceReason : "—"}
                         </TableCell>
                       </TableRow>
                     );

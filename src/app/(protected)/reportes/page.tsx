@@ -33,10 +33,14 @@ import {
   StatGrid,
 } from "@/components/layout";
 import { Activity, CalendarDays, Users } from "lucide-react";
+import {
+  buildSeasonSessionOptions,
+  type AttendanceSeasonPeriodDto,
+} from "@/lib/attendanceSeasonShared";
 
-type PeriodPreset = "7" | "15" | "30" | "90" | "180" | "364" | "custom";
+type PeriodPreset = string;
 
-const PERIOD_PRESETS = new Set<PeriodPreset>(["7", "15", "30", "90", "180", "364", "custom"]);
+const PERIOD_PRESETS = new Set(["7", "15", "30", "90", "180", "364", "custom"]);
 
 function parseReportFilters(searchParams: URLSearchParams) {
   const categoryParam = searchParams.get("category");
@@ -51,8 +55,8 @@ function parseReportFilters(searchParams: URLSearchParams) {
 
   const periodParam = searchParams.get("period");
   const period: PeriodPreset =
-    periodParam && PERIOD_PRESETS.has(periodParam as PeriodPreset)
-      ? (periodParam as PeriodPreset)
+    periodParam && (PERIOD_PRESETS.has(periodParam) || periodParam.startsWith("season:"))
+      ? periodParam
       : "30";
 
   return {
@@ -76,8 +80,8 @@ const PERIOD_OPTIONS: { value: PeriodPreset; label: string }[] = [
 
 const SESSION_OPTIONS = [
   { value: "ALL", label: "Todos los turnos (acumulado)" },
-  { value: "TURNO_MANANA", label: "Turno Mañana" },
-  { value: "TURNO_TARDE", label: "Turno Tarde" },
+  { value: "TURNO_MANANA", label: "Piscina 1" },
+  { value: "TURNO_TARDE", label: "Piscina 2" },
   { value: "PESAS", label: "Pesas" },
 ];
 
@@ -199,19 +203,6 @@ function AttendancePill({ pct }: { pct: number | null }) {
   );
 }
 
-function ScorePill({ score }: { score: number | null }) {
-  if (score === null) return <span className="text-gray-300 text-xs">—</span>;
-  const color =
-    score >= 3.5
-      ? "text-green-700 font-bold"
-      : score >= 2.5
-      ? "text-blue-700 font-semibold"
-      : score >= 1.5
-      ? "text-yellow-700 font-semibold"
-      : "text-red-700 font-semibold";
-  return <span className={`text-xs ${color}`}>{score.toFixed(1)}</span>;
-}
-
 function MiniBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max === 0 ? 0 : Math.round((value / max) * 100);
   return (
@@ -231,7 +222,6 @@ function TurnCell({ stats }: { stats?: TurnStats }) {
   return (
     <div className="flex flex-col items-center gap-0.5">
       <AttendancePill pct={stats.attendancePct} />
-      <ScorePill score={stats.avgScore} />
     </div>
   );
 }
@@ -253,7 +243,19 @@ export default function ReportesPage() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<ReporteData | null>(null);
   const [categoriasData, setCategoriasData] = useState<CategoriasReporteData | null>(null);
+  const [seasonPeriods, setSeasonPeriods] = useState<AttendanceSeasonPeriodDto[]>([]);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function loadSeasonPeriods() {
+      const res = await fetch("/api/attendance-season/periods");
+      if (res.ok) {
+        const periods = await res.json();
+        if (Array.isArray(periods)) setSeasonPeriods(periods);
+      }
+    }
+    loadSeasonPeriods();
+  }, []);
 
   useEffect(() => {
     setSelectedCategory(urlFilters.category);
@@ -271,6 +273,36 @@ export default function ReportesPage() {
     }
     return params;
   }, [sessionType, period, dateFrom, dateTo]);
+
+  const periodOptions = useMemo(
+    () => [
+      ...PERIOD_OPTIONS,
+      ...seasonPeriods.map((season) => ({
+        value: `season:${season.id}`,
+        label: season.name,
+      })),
+    ],
+    [seasonPeriods]
+  );
+
+  const sessionFilterOptions = useMemo(() => {
+    if (!period.startsWith("season:")) return SESSION_OPTIONS;
+    const season = seasonPeriods.find((p) => `season:${p.id}` === period);
+    if (!season) return SESSION_OPTIONS;
+    return [
+      { value: "ALL", label: "Todos los turnos (acumulado)" },
+      ...buildSeasonSessionOptions(season.sessions).map((session) => ({
+        value: session.value,
+        label: session.label,
+      })),
+    ];
+  }, [period, seasonPeriods]);
+
+  useEffect(() => {
+    if (sessionType === "ALL") return;
+    if (sessionFilterOptions.some((option) => option.value === sessionType)) return;
+    setSessionType("ALL");
+  }, [sessionFilterOptions, sessionType]);
 
   const fetchReporte = useCallback(async () => {
     setLoading(true);
@@ -322,6 +354,11 @@ export default function ReportesPage() {
   const maxRegistered = data ? Math.max(...data.ranking.map((r) => r.totalRegistered), 1) : 1;
   const showTurnColumns = sessionType === "ALL";
   const activeFilters = activeTab === "ranking" ? data?.filters : categoriasData?.filters;
+  const turnColumns = useMemo(() => {
+    if (!showTurnColumns) return [];
+    if (activeTab === "ranking") return data?.summary.bySessionType ?? [];
+    return categoriasData?.rows[0]?.bySessionType ?? [];
+  }, [activeTab, categoriasData, data, showTurnColumns]);
 
   return (
     <PageShell>
@@ -383,7 +420,7 @@ export default function ReportesPage() {
           )}
 
           <FilterChipGroup label="Periodo">
-            {PERIOD_OPTIONS.map((opt) => (
+            {periodOptions.map((opt) => (
               <FilterChip
                 key={opt.value}
                 active={period === opt.value}
@@ -428,7 +465,7 @@ export default function ReportesPage() {
                 onChange={(e) => setSessionType(e.target.value)}
                 className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                {SESSION_OPTIONS.map((o) => (
+                {sessionFilterOptions.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
@@ -481,7 +518,7 @@ export default function ReportesPage() {
             )}
             {data.filters.sessionType !== "ALL" && (
               <Badge variant="secondary">
-                {SESSION_OPTIONS.find((o) => o.value === data.filters.sessionType)?.label}
+                {sessionFilterOptions.find((o) => o.value === data.filters.sessionType)?.label}
               </Badge>
             )}
           </div>
@@ -500,9 +537,7 @@ export default function ReportesPage() {
                         <TableHead className="font-semibold text-center">Sesiones</TableHead>
                         <TableHead className="font-semibold text-center">Asistencia</TableHead>
                         <TableHead className="font-semibold text-center">Asistió</TableHead>
-                        <TableHead className="font-semibold text-center">Just.</TableHead>
-                        <TableHead className="font-semibold text-center">Injust.</TableHead>
-                        <TableHead className="font-semibold text-center">Prom. puntaje</TableHead>
+                        <TableHead className="font-semibold text-center">Faltas</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -516,14 +551,8 @@ export default function ReportesPage() {
                           <TableCell className="text-center tabular-nums text-sm text-green-600">
                             {row.attended}
                           </TableCell>
-                          <TableCell className="text-center tabular-nums text-sm text-yellow-600">
-                            {row.absentJustified}
-                          </TableCell>
                           <TableCell className="text-center tabular-nums text-sm text-red-600">
-                            {row.absentUnjustified}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <ScorePill score={row.avgScore} />
+                            {row.absentJustified + row.absentUnjustified}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -540,7 +569,7 @@ export default function ReportesPage() {
                 Ranking — {data.category ? CATEGORY_LABELS[data.category] : ""}
                 {showTurnColumns && (
                   <span className="text-gray-400 font-normal text-sm ml-2">
-                    (columnas por turno: % asistencia / puntaje)
+                    (columnas por turno: % asistencia)
                   </span>
                 )}
               </CardTitle>
@@ -559,15 +588,15 @@ export default function ReportesPage() {
                         <TableHead className="text-center">Total</TableHead>
                         {showTurnColumns && (
                           <>
-                            <TableHead className="text-center">Mañana</TableHead>
-                            <TableHead className="text-center">Tarde</TableHead>
-                            <TableHead className="text-center">Pesas</TableHead>
+                            {turnColumns.map((turn) => (
+                              <TableHead key={turn.sessionType} className="text-center">
+                                {turn.label}
+                              </TableHead>
+                            ))}
                           </>
                         )}
                         <TableHead className="hidden sm:table-cell">Asistió</TableHead>
-                        <TableHead className="hidden sm:table-cell">Just.</TableHead>
-                        <TableHead className="hidden sm:table-cell">Injust.</TableHead>
-                        <TableHead className="text-center">Prom. Puntaje</TableHead>
+                        <TableHead className="hidden sm:table-cell">Faltas</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -617,15 +646,11 @@ export default function ReportesPage() {
                             </TableCell>
                             {showTurnColumns && (
                               <>
-                                <TableCell className="text-center">
-                                  <TurnCell stats={turnMap.TURNO_MANANA} />
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <TurnCell stats={turnMap.TURNO_TARDE} />
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <TurnCell stats={turnMap.PESAS} />
-                                </TableCell>
+                                {turnColumns.map((turn) => (
+                                  <TableCell key={turn.sessionType} className="text-center">
+                                    <TurnCell stats={turnMap[turn.sessionType]} />
+                                  </TableCell>
+                                ))}
                               </>
                             )}
                             <TableCell className="hidden sm:table-cell">
@@ -633,20 +658,10 @@ export default function ReportesPage() {
                             </TableCell>
                             <TableCell className="hidden sm:table-cell">
                               <MiniBar
-                                value={player.absentJustified}
-                                max={maxRegistered}
-                                color="bg-yellow-400"
-                              />
-                            </TableCell>
-                            <TableCell className="hidden sm:table-cell">
-                              <MiniBar
-                                value={player.absentUnjustified}
+                                value={player.absentJustified + player.absentUnjustified}
                                 max={maxRegistered}
                                 color="bg-red-400"
                               />
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <ScorePill score={player.avgScore} />
                             </TableCell>
                           </TableRow>
                         );
@@ -663,18 +678,12 @@ export default function ReportesPage() {
               <span className="w-3 h-3 rounded-full bg-green-500 inline-block" /> Asistió
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-yellow-400 inline-block" /> Inasistencia justificada
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-red-400 inline-block" /> Inasistencia injustificada
+              <span className="w-3 h-3 rounded-full bg-red-400 inline-block" /> Faltas
             </div>
             <div className="flex items-center gap-2 ml-4 pl-4 border-l">
               <span className="text-green-700 font-bold">≥80%</span>
               <span className="text-yellow-700 font-semibold">60–79%</span>
               <span className="text-red-700 font-semibold">&lt;60%</span>
-            </div>
-            <div className="ml-4 pl-4 border-l">
-              Puntaje: 1=Bajo · 2=Regular · 3=Bueno · 4=Excelente
             </div>
           </div>
         </>
@@ -731,14 +740,14 @@ export default function ReportesPage() {
                       <TableHead className="font-semibold text-center">Sesiones</TableHead>
                       <TableHead className="font-semibold text-center">Asistencia</TableHead>
                       <TableHead className="font-semibold text-center">Asistió</TableHead>
-                      <TableHead className="font-semibold text-center">Just.</TableHead>
-                      <TableHead className="font-semibold text-center">Injust.</TableHead>
-                      <TableHead className="font-semibold text-center">Prom. puntaje</TableHead>
+                      <TableHead className="font-semibold text-center">Faltas</TableHead>
                       {showTurnColumns && (
                         <>
-                          <TableHead className="font-semibold text-center">Mañana</TableHead>
-                          <TableHead className="font-semibold text-center">Tarde</TableHead>
-                          <TableHead className="font-semibold text-center">Pesas</TableHead>
+                          {turnColumns.map((turn) => (
+                            <TableHead key={turn.sessionType} className="font-semibold text-center">
+                              {turn.label}
+                            </TableHead>
+                          ))}
                         </>
                       )}
                     </TableRow>
@@ -764,26 +773,16 @@ export default function ReportesPage() {
                           <TableCell className="text-center tabular-nums text-sm text-green-600">
                             {row.attended}
                           </TableCell>
-                          <TableCell className="text-center tabular-nums text-sm text-yellow-600">
-                            {row.absentJustified}
-                          </TableCell>
                           <TableCell className="text-center tabular-nums text-sm text-red-600">
-                            {row.absentUnjustified}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <ScorePill score={row.avgScore} />
+                            {row.absentJustified + row.absentUnjustified}
                           </TableCell>
                           {showTurnColumns && (
                             <>
-                              <TableCell className="text-center">
-                                <TurnCell stats={turnMap.TURNO_MANANA} />
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <TurnCell stats={turnMap.TURNO_TARDE} />
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <TurnCell stats={turnMap.PESAS} />
-                              </TableCell>
+                              {turnColumns.map((turn) => (
+                                <TableCell key={turn.sessionType} className="text-center">
+                                  <TurnCell stats={turnMap[turn.sessionType]} />
+                                </TableCell>
+                              ))}
                             </>
                           )}
                         </TableRow>
