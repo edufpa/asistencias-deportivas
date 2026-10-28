@@ -17,8 +17,7 @@ import {
   CATEGORY_LABELS,
   PLAYER_GENDER_LABELS,
   formatPlayerName,
-  getBirthYear,
-  getPlayerCategory,
+  resolvePlayerCategory,
 } from "@/lib/player";
 import { formatSecondsAsMmSsCc, formatTestValue, isTimeLikeUnit } from "@/lib/testTimeFormat";
 import { cn } from "@/lib/utils";
@@ -150,7 +149,7 @@ function MiPerfilContent() {
   }, [player]);
 
   const category = player
-    ? getPlayerCategory(getBirthYear(player.birthDate), referenceYear)
+    ? resolvePlayerCategory(player, referenceYear)
     : null;
 
   const attendancePct = useMemo(() => {

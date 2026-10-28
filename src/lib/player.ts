@@ -1,8 +1,8 @@
 import type { DocumentType, MembershipStatus, PlayerStatus } from "@prisma/client";
 
-export type Category = "SUB10" | "SUB12" | "SUB14" | "SUB16" | "SUB18" | "OPEN";
+export type Category = "SUB10" | "SUB12" | "SUB14" | "SUB16" | "SUB18" | "OPEN" | "MASTER";
 
-export const CATEGORIES: Category[] = ["SUB10", "SUB12", "SUB14", "SUB16", "SUB18", "OPEN"];
+export const CATEGORIES: Category[] = ["SUB10", "SUB12", "SUB14", "SUB16", "SUB18", "OPEN", "MASTER"];
 
 export const CATEGORY_LABELS: Record<Category, string> = {
   SUB10: "Sub 10",
@@ -11,6 +11,7 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   SUB16: "Sub 16",
   SUB18: "Sub 18",
   OPEN: "Mayores (Open)",
+  MASTER: "Máster",
 };
 
 export type PlayerGender = "MALE" | "FEMALE";
@@ -23,6 +24,15 @@ export function getPlayerCategory(birthYear: number, referenceYear?: number): Ca
   if (birthYear >= year - 16) return "SUB16";
   if (birthYear >= year - 18) return "SUB18";
   return "OPEN";
+}
+
+/** Máster se asigna manualmente por jugador (`isMaster`); no depende del año de nacimiento. */
+export function resolvePlayerCategory(
+  player: { birthDate: string | Date; isMaster?: boolean | null },
+  referenceYear?: number
+): Category {
+  if (player.isMaster) return "MASTER";
+  return getPlayerCategory(getBirthYear(player.birthDate), referenceYear);
 }
 
 /** Evita errores de zona horaria al calcular categoría desde birthDate. */
@@ -51,6 +61,7 @@ export function matchesPlayerGender(
 export function getConvocatoriaEligibleCategories(category: Category): Category[] {
   const index = CATEGORIES.indexOf(category);
   if (index === -1) return [category];
+  if (category === "MASTER") return ["OPEN", "MASTER"];
   return CATEGORIES.slice(Math.max(0, index - 2), index + 1);
 }
 

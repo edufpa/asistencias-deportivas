@@ -27,7 +27,7 @@ const server = new McpServer({
   version: "1.1.0",
 });
 
-const categoryEnum = z.enum(["SUB10", "SUB12", "SUB14", "SUB16", "SUB18", "OPEN"]);
+const categoryEnum = z.enum(["SUB10", "SUB12", "SUB14", "SUB16", "SUB18", "OPEN", "MASTER"]);
 const sessionTypeEnum = z.enum(["TURNO_MANANA", "TURNO_TARDE", "PESAS"]);
 const attendanceStatusEnum = z.enum(["ATTENDED", "ABSENT_JUSTIFIED", "ABSENT_UNJUSTIFIED"]);
 

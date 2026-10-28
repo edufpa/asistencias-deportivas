@@ -21,8 +21,7 @@ import { es } from "date-fns/locale";
 import {
   CATEGORIES,
   CATEGORY_LABELS,
-  getBirthYear,
-  getPlayerCategory,
+  resolvePlayerCategory,
   type Category,
 } from "@/lib/player";
 
@@ -39,13 +38,13 @@ async function getPlayersByCategoryAndGender() {
   const referenceYear = new Date().getFullYear();
   const players = await prisma.player.findMany({
     where: { playerStatus: "ACTIVE" },
-    select: { birthDate: true, gender: true },
+    select: { birthDate: true, isMaster: true, gender: true },
   });
 
   const counts = emptyCounts();
 
   for (const p of players) {
-    const category = getPlayerCategory(getBirthYear(p.birthDate), referenceYear);
+    const category = resolvePlayerCategory(p, referenceYear);
     if (p.gender === "FEMALE") {
       counts[category].female += 1;
     } else {

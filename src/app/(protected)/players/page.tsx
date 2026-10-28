@@ -26,8 +26,7 @@ import {
   PLAYER_STATUS_LABELS,
   CATEGORIES,
   CATEGORY_LABELS,
-  getBirthYear,
-  getPlayerCategory,
+  resolvePlayerCategory,
   matchesPlayerGender,
 } from "@/lib/player";
 import type { Category, PlayerGender } from "@/lib/player";
@@ -92,7 +91,7 @@ export default function PlayersPage() {
         return false;
       }
       if (filterCategory !== "ALL") {
-        const cat = getPlayerCategory(getBirthYear(p.birthDate), referenceYear);
+        const cat = resolvePlayerCategory(p, referenceYear);
         if (cat !== filterCategory) return false;
       }
       return true;
@@ -193,7 +192,7 @@ export default function PlayersPage() {
           </TableHeader>
           <TableBody>
               {filteredPlayers.map((p) => {
-                const category = getPlayerCategory(getBirthYear(p.birthDate), referenceYear);
+                const category = resolvePlayerCategory(p, referenceYear);
                 return (
                   <TableRow key={p.id}>
                     <TableCell className="py-2">

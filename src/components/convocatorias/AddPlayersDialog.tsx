@@ -5,8 +5,7 @@ import {
   formatPlayerName,
   CATEGORY_LABELS,
   getConvocatoriaEligibleCategories,
-  getBirthYear,
-  getPlayerCategory,
+  resolvePlayerCategory,
   playerEligibleForConvocatoria,
   type Category,
 } from "@/lib/player";
@@ -171,7 +170,7 @@ export function AddPlayersDialog({
               </p>
             ) : (
               available.map((p) => {
-                const playerCat = getPlayerCategory(getBirthYear(p.birthDate), referenceYear);
+                const playerCat = resolvePlayerCategory(p, referenceYear);
                 return (
                   <div
                     key={p.id}

@@ -22,7 +22,7 @@ import {
   timePartsStringsToSeconds,
   type TimePartsStrings,
 } from "@/lib/testTimeFormat";
-import { formatPlayerName, CATEGORIES, CATEGORY_LABELS, PLAYER_GENDER_OPTIONS, getBirthYear, getPlayerCategory, matchesPlayerGender } from "@/lib/player";
+import { formatPlayerName, CATEGORIES, CATEGORY_LABELS, PLAYER_GENDER_OPTIONS, resolvePlayerCategory, matchesPlayerGender } from "@/lib/player";
 import type { Category, PlayerGender } from "@/lib/player";
 import {
   PageShell,
@@ -113,7 +113,7 @@ function filterPlayersList(
   const q = search.trim().toLowerCase();
   return players.filter((p) => {
     if (categoryFilter !== "ALL") {
-      const cat = getPlayerCategory(getBirthYear(p.birthDate), referenceYear);
+      const cat = resolvePlayerCategory(p, referenceYear);
       if (cat !== categoryFilter) return false;
     }
     if (genderFilter !== "ALL" && !matchesPlayerGender(p.gender, genderFilter)) {
@@ -374,7 +374,7 @@ export default function TestDetailPage() {
       .map((row) => {
         const p = playerById.get(row.player.id);
         const cat = p
-          ? getPlayerCategory(getBirthYear(p.birthDate), referenceYear)
+          ? resolvePlayerCategory(p, referenceYear)
           : ("OPEN" as Category);
         return {
           name: formatPlayerName(row.player),
@@ -396,7 +396,7 @@ export default function TestDetailPage() {
         const p = playerById.get(ev.player.id);
         if (marksCategoryFilter !== "ALL") {
           if (!p) return false;
-          const cat = getPlayerCategory(getBirthYear(p.birthDate), referenceYear);
+          const cat = resolvePlayerCategory(p, referenceYear);
           if (cat !== marksCategoryFilter) return false;
         }
         const dateStr = toDateOnlyString(ev.evalDate) ?? ev.evalDate;
@@ -793,7 +793,7 @@ export default function TestDetailPage() {
                       paginatedEvaluations.map((ev) => {
                         const p = playerById.get(ev.player.id);
                         const cat = p
-                          ? getPlayerCategory(getBirthYear(p.birthDate), referenceYear)
+                          ? resolvePlayerCategory(p, referenceYear)
                           : ("OPEN" as Category);
                         return (
                           <TableRow key={ev.id}>
@@ -921,7 +921,7 @@ export default function TestDetailPage() {
                 <SelectContent>
                   {filteredPlayersHist.map((p) => {
                     const hasData = test.evaluations.some((e) => e.player.id === p.id);
-                    const cat = getPlayerCategory(getBirthYear(p.birthDate), referenceYear);
+                    const cat = resolvePlayerCategory(p, referenceYear);
                     const name = formatPlayerName(p);
                     return (
                       <SelectItem key={p.id} value={p.id} label={name}>

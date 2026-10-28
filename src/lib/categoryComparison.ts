@@ -1,8 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
   CATEGORY_LABELS,
-  getBirthYear,
-  getPlayerCategory,
+  resolvePlayerCategory,
   matchesPlayerGender,
   type Category,
   type PlayerGender,
@@ -17,11 +16,11 @@ export async function getPlayersInAgeCategory(
 ) {
   const all = await prisma.player.findMany({
     where: { playerStatus: "ACTIVE" },
-    select: { id: true, birthDate: true, gender: true },
+    select: { id: true, birthDate: true, isMaster: true, gender: true },
   });
   return all.filter(
     (p) =>
-      getPlayerCategory(getBirthYear(p.birthDate), referenceYear) === category &&
+      resolvePlayerCategory(p, referenceYear) === category &&
       matchesPlayerGender(p.gender, gender)
   );
 }
@@ -33,13 +32,13 @@ export async function getCategoryAttendanceComparison(
 ) {
   const player = await prisma.player.findUnique({
     where: { id: playerId },
-    select: { birthDate: true, gender: true },
+    select: { birthDate: true, isMaster: true, gender: true },
   });
   if (!player) return null;
 
   const referenceYear = to?.getUTCFullYear() ?? from?.getUTCFullYear() ?? new Date().getFullYear();
   const gender: PlayerGender = player.gender === "FEMALE" ? "FEMALE" : "MALE";
-  const category = getPlayerCategory(getBirthYear(player.birthDate), referenceYear);
+  const category = resolvePlayerCategory(player, referenceYear);
 
   const sessionWhere: Record<string, unknown> = {
     category: category as PrismaCategory,
@@ -124,13 +123,13 @@ export async function getCategoryAttendanceComparison(
 export async function getCategoryTestAverages(playerId: string) {
   const player = await prisma.player.findUnique({
     where: { id: playerId },
-    select: { birthDate: true, gender: true },
+    select: { birthDate: true, isMaster: true, gender: true },
   });
   if (!player) return new Map<string, number>();
 
   const referenceYear = new Date().getFullYear();
   const gender: PlayerGender = player.gender === "FEMALE" ? "FEMALE" : "MALE";
-  const category = getPlayerCategory(getBirthYear(player.birthDate), referenceYear);
+  const category = resolvePlayerCategory(player, referenceYear);
   const categoryPlayers = await getPlayersInAgeCategory(category, gender, referenceYear);
   const playerIds = categoryPlayers.map((p) => p.id);
 

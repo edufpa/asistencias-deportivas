@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { log } from "@/lib/logger";
-import { formatPlayerName, getBirthYear, getPlayerCategory } from "@/lib/player";
+import { formatPlayerName, resolvePlayerCategory } from "@/lib/player";
 import { parsePlayerBody } from "@/lib/parsePlayerBody";
 import { linkPlayerToUserAccount } from "@/lib/playerUserLink";
 import { stripPlayerSensitiveData, stripPlayersSensitiveData } from "@/lib/playerSensitiveData";
@@ -42,7 +42,7 @@ function summarizePlayer(p: {
     playerStatus: p.playerStatus,
     membershipStatus: p.membershipStatus,
     birthDate: p.birthDate.toISOString().split("T")[0],
-    category: getPlayerCategory(getBirthYear(p.birthDate)),
+    category: resolvePlayerCategory(p),
   };
 }
 
@@ -130,7 +130,7 @@ export async function getPlayerDetail(ctx: McpAuthContext, args: { playerId: str
     birthDate: player.birthDate.toISOString().split("T")[0],
     teamJoinDate: player.teamJoinDate?.toISOString().split("T")[0] ?? null,
     name: formatPlayerName(player),
-    category: getPlayerCategory(getBirthYear(player.birthDate)),
+    category: resolvePlayerCategory(player),
     convocatorias: player.convocatorias.map((cp) => ({
       id: cp.convocatoria.id,
       name: cp.convocatoria.name,

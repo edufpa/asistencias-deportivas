@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getBirthYear, getPlayerCategory, matchesPlayerGender } from "@/lib/player";
+import { resolvePlayerCategory, matchesPlayerGender } from "@/lib/player";
 import type { Category, PlayerGender } from "@/lib/player";
 import { getSessionRole, getLinkedPlayerIds } from "@/lib/auth-session";
 
@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
     .filter(
       (p) =>
         matchesPlayerGender(p.gender, gender) &&
-        getPlayerCategory(getBirthYear(p.birthDate), referenceYear) === category
+        resolvePlayerCategory(p, referenceYear) === category
     )
     .map((p) => ({
       id: p.id,
