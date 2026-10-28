@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getBirthYear, getPlayerCategory, matchesPlayerGender } from "@/lib/player";
+import { resolvePlayerCategory, matchesPlayerGender } from "@/lib/player";
 import type { PlayerGender } from "@/lib/player";
 import { getAttendanceSeasonOptionsForReportRange } from "@/lib/attendanceSeason";
 import {
@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
   const referenceYear = to?.getUTCFullYear() ?? from?.getUTCFullYear() ?? new Date().getFullYear();
 
   const allPlayers = await prisma.player.findMany({
-    select: { id: true, birthDate: true, gender: true },
+    select: { id: true, birthDate: true, isMaster: true, gender: true },
   });
 
   const playersByCategoryGender = new Map<string, string[]>();
@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
       const ids = allPlayers
         .filter(
           (p) =>
-            getPlayerCategory(getBirthYear(p.birthDate), referenceYear) === cat &&
+            resolvePlayerCategory(p, referenceYear) === cat &&
             matchesPlayerGender(p.gender, gender)
         )
         .map((p) => p.id);

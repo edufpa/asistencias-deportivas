@@ -35,6 +35,7 @@ export type PlayerFormData = {
   documentId: string;
   birthDate: string;
   gender: Gender;
+  isMaster?: boolean;
   membershipStatus: MembershipStatus;
   membershipCardNumber: string | null;
   federationCode: string | null;
@@ -84,6 +85,7 @@ function emptyForm() {
     documentId: "",
     birthDate: "",
     gender: "MALE" as Gender,
+    isMaster: false,
     membershipStatus: "NO_ASOCIADO" as MembershipStatus,
     membershipCardNumber: "",
     federationCode: "",
@@ -177,6 +179,7 @@ export function PlayerFormDialog({ open, onOpenChange, player, onSuccess, initia
         documentId: player.documentId,
         birthDate: format(new Date(player.birthDate), "yyyy-MM-dd"),
         gender: player.gender === "FEMALE" ? "FEMALE" : "MALE",
+        isMaster: player.isMaster ?? false,
         membershipStatus: player.membershipStatus,
         membershipCardNumber: player.membershipCardNumber ?? "",
         federationCode: player.federationCode ?? "",
@@ -406,6 +409,28 @@ export function PlayerFormDialog({ open, onOpenChange, player, onSuccess, initia
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Categoría Máster</Label>
+                <div className="flex gap-2">
+                  {[
+                    { value: false, label: "Por edad" },
+                    { value: true, label: "Máster" },
+                  ].map((opt) => (
+                    <button
+                      key={String(opt.value)}
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, isMaster: opt.value }))}
+                      className={cn("flex-1", filterChipClass(!!form.isMaster === opt.value, "md"))}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Máster entrena con menos frecuencia y se asigna manualmente, sin importar la edad.
+                </p>
               </div>
 
               <div className="space-y-2">

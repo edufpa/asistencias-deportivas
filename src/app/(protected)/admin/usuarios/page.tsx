@@ -19,7 +19,7 @@ import {
   type AppRole,
 } from "@/lib/permissions";
 import { RoleGate } from "@/components/RoleGate";
-import { formatPlayerName, CATEGORIES, CATEGORY_LABELS, getBirthYear, getPlayerCategory, matchesPlayerGender } from "@/lib/player";
+import { formatPlayerName, CATEGORIES, CATEGORY_LABELS, resolvePlayerCategory, matchesPlayerGender } from "@/lib/player";
 import type { Category, PlayerGender } from "@/lib/player";
 import type { Gender } from "@prisma/client";
 import { RegistrationLinkCard } from "@/components/admin/RegistrationLinkCard";
@@ -185,7 +185,7 @@ function UsuariosAdminContent() {
         if (!player) return false;
         if (filterGender !== "ALL" && !matchesPlayerGender(player.gender, filterGender)) return false;
         if (filterCategory !== "ALL") {
-          const cat = getPlayerCategory(getBirthYear(player.birthDate), referenceYear);
+          const cat = resolvePlayerCategory(player, referenceYear);
           if (cat !== filterCategory) return false;
         }
         return true;

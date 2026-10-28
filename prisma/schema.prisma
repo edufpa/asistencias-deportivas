@@ -89,6 +89,7 @@ model Player {
   membershipCardNumber String?
   federationCode       String?
   playerStatus         PlayerStatus     @default(ACTIVE)
+  isMaster             Boolean          @default(false)
   teamJoinDate         DateTime?        @db.Date
   homeAddress          String?
   contactPhone         String?
@@ -248,6 +249,7 @@ enum Category {
   SUB16
   SUB18
   OPEN
+  MASTER
 }
 
 enum SessionType {

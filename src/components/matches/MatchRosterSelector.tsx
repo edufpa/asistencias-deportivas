@@ -5,8 +5,7 @@ import {
   formatPlayerName,
   CATEGORIES,
   CATEGORY_LABELS,
-  getBirthYear,
-  getPlayerCategory,
+  resolvePlayerCategory,
   matchesPlayerGender,
   type Category,
   type PlayerGender,
@@ -55,7 +54,7 @@ export function MatchRosterSelector({
     return players.filter((p) => {
       if (filterGender !== "ALL" && !matchesPlayerGender(p.gender, filterGender)) return false;
       if (filterCategory !== "ALL") {
-        const cat = getPlayerCategory(getBirthYear(p.birthDate), referenceYear);
+        const cat = resolvePlayerCategory(p, referenceYear);
         if (cat !== filterCategory) return false;
       }
       if (search.trim()) {
@@ -140,7 +139,7 @@ export function MatchRosterSelector({
           <p className="text-sm text-muted-foreground p-3 text-center">Sin jugadores para estos filtros</p>
         ) : (
           filtered.map((p) => {
-            const cat = getPlayerCategory(getBirthYear(p.birthDate), referenceYear);
+            const cat = resolvePlayerCategory(p, referenceYear);
             const isSelected = selected.has(p.id);
             return (
               <label

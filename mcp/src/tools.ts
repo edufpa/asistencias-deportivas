@@ -3,7 +3,7 @@ import type { Category, ConvocatoriaStatus, Gender } from "@prisma/client";
 import { prisma } from "./db.js";
 import { formatPlayerName } from "./format.js";
 
-const categorySchema = z.enum(["SUB10", "SUB12", "SUB14", "SUB16", "SUB18", "OPEN"]);
+const categorySchema = z.enum(["SUB10", "SUB12", "SUB14", "SUB16", "SUB18", "OPEN", "MASTER"]);
 const genderSchema = z.enum(["MALE", "FEMALE", "MIXED"]);
 
 function getBirthYear(birthDate: Date): number {
@@ -17,6 +17,14 @@ function getPlayerCategory(birthYear: number, referenceYear = new Date().getFull
   if (birthYear >= referenceYear - 16) return "SUB16";
   if (birthYear >= referenceYear - 18) return "SUB18";
   return "OPEN";
+}
+
+function resolvePlayerCategory(
+  player: { birthDate: Date; isMaster?: boolean | null },
+  referenceYear?: number
+) {
+  if (player.isMaster) return "MASTER";
+  return getPlayerCategory(getBirthYear(player.birthDate), referenceYear);
 }
 
 function summarizeAttendance(
@@ -137,6 +145,7 @@ export async function getConvocatoria(args: { convocatoriaId: string }) {
               maternalLastName: true,
               documentId: true,
               birthDate: true,
+              isMaster: true,
             },
           },
         },
@@ -169,7 +178,7 @@ export async function getConvocatoria(args: { convocatoriaId: string }) {
       name: formatPlayerName(cp.player),
       capNumber: cp.capNumber,
       documentId: cp.player.documentId,
-      category: getPlayerCategory(getBirthYear(cp.player.birthDate)),
+      category: resolvePlayerCategory(cp.player),
     })),
   };
 }
@@ -194,6 +203,7 @@ export async function searchPlayers(args: { query: string; limit?: number }) {
       maternalLastName: true,
       documentId: true,
       birthDate: true,
+      isMaster: true,
       gender: true,
       playerStatus: true,
     },
@@ -205,7 +215,7 @@ export async function searchPlayers(args: { query: string; limit?: number }) {
     documentId: p.documentId,
     gender: p.gender,
     playerStatus: p.playerStatus,
-    category: getPlayerCategory(getBirthYear(p.birthDate)),
+    category: resolvePlayerCategory(p),
   }));
 }
 
@@ -242,7 +252,7 @@ export async function getPlayer(args: { playerId: string; attendanceDays?: numbe
     birthDate: player.birthDate.toISOString().split("T")[0],
     gender: player.gender,
     playerStatus: player.playerStatus,
-    category: getPlayerCategory(getBirthYear(player.birthDate)),
+    category: resolvePlayerCategory(player),
     contactPhone: player.contactPhone,
     playerEmail: player.playerEmail,
     convocatorias: player.convocatorias.map((cp) => ({
@@ -298,14 +308,14 @@ export async function attendanceSummary(args: {
       paternalLastName: true,
       maternalLastName: true,
       birthDate: true,
+      isMaster: true,
       gender: true,
     },
   });
 
   const players = allPlayers.filter((p) => {
-    const birthYear = getBirthYear(p.birthDate);
     const playerGender = p.gender === "FEMALE" ? "FEMALE" : "MALE";
-    return getPlayerCategory(birthYear, referenceYear) === args.category && playerGender === args.gender;
+    return resolvePlayerCategory(p, referenceYear) === args.category && playerGender === args.gender;
   });
 
   const records = await prisma.attendanceRecord.findMany({

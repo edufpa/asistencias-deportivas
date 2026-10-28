@@ -34,7 +34,7 @@ import {
   updatePlayer,
 } from "@/lib/mcp/tools-players-crud";
 
-const categoryEnum = z.enum(["SUB10", "SUB12", "SUB14", "SUB16", "SUB18", "OPEN"]);
+const categoryEnum = z.enum(["SUB10", "SUB12", "SUB14", "SUB16", "SUB18", "OPEN", "MASTER"]);
 const sessionTypeEnum = z.enum(["TURNO_MANANA", "TURNO_TARDE", "PESAS"]);
 const attendanceStatusEnum = z.enum(["ATTENDED", "ABSENT_JUSTIFIED", "ABSENT_UNJUSTIFIED"]);
 const eventCategoryEnum = z.enum([

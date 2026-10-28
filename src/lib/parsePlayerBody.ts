@@ -21,6 +21,7 @@ export function parsePlayerBody(body: Record<string, unknown>) {
   const gender = String(body.gender ?? "MALE");
   const membershipStatus = String(body.membershipStatus ?? "NO_ASOCIADO");
   const playerStatus = String(body.playerStatus ?? "ACTIVE");
+  const isMaster = body.isMaster === true || body.isMaster === "true";
   const federationCode = optStr(body.federationCode);
   const membershipCardNumber = body.membershipCardNumber
     ? String(body.membershipCardNumber).trim()
@@ -91,6 +92,7 @@ export function parsePlayerBody(body: Record<string, unknown>) {
       documentId,
       birthDate: parsedBirthDate,
       gender: gender as Gender,
+      isMaster,
       membershipStatus: membershipStatus as MembershipStatus,
       membershipCardNumber: membershipStatus === "ASOCIADO" ? membershipCardNumber : null,
       federationCode,

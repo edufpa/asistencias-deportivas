@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getBirthYear, getPlayerCategory, matchesPlayerGender } from "@/lib/player";
+import { getBirthYear, resolvePlayerCategory, matchesPlayerGender } from "@/lib/player";
 import type { PlayerGender } from "@/lib/player";
 import { getAttendanceSeasonOptionsForReportRange } from "@/lib/attendanceSeason";
 import { resolveReportDateRange } from "@/lib/reportesAsistencia";
@@ -90,6 +90,7 @@ export async function GET(req: NextRequest) {
       documentId: true,
       documentType: true,
       birthDate: true,
+      isMaster: true,
       gender: true,
     },
     orderBy: [{ paternalLastName: "asc" }, { firstName: "asc" }],
@@ -98,7 +99,7 @@ export async function GET(req: NextRequest) {
   const players = allPlayers
     .filter(
       (p) =>
-        getPlayerCategory(getBirthYear(p.birthDate), referenceYear) === category &&
+        resolvePlayerCategory(p, referenceYear) === category &&
         matchesPlayerGender(p.gender, gender)
     )
     .map((p) => ({ ...p, documentType: p.documentType as string, playerStatus: "ACTIVE" as const }));
