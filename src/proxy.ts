@@ -22,6 +22,7 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/restablecer-contrasena/") ||
     pathname === "/api/auth/forgot-password" ||
     pathname.startsWith("/api/auth/reset-password/");
+  const isInternalForceUser = pathname === "/api/internal/force-user";
   const isMcpPublic =
     pathname.startsWith("/api/mcp") ||
     pathname.startsWith("/.well-known/") ||
@@ -35,6 +36,7 @@ export async function proxy(req: NextRequest) {
     isPublicRegistration ||
     isPublicPasswordReset ||
     isCompleteAccountApi ||
+    isInternalForceUser ||
     isMcpPublic
   ) {
     return NextResponse.next();
