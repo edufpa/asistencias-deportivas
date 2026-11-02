@@ -28,6 +28,15 @@ export async function proxy(req: NextRequest) {
     pathname === "/authorize" ||
     pathname === "/token" ||
     pathname === "/register";
+  const isPublicAppIcon =
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/manifest.json" ||
+    pathname === "/favicon.ico" ||
+    pathname === "/favicon.png" ||
+    pathname === "/favicon-16x16.png" ||
+    pathname === "/favicon-32x32.png" ||
+    pathname === "/apple-touch-icon.png" ||
+    pathname.startsWith("/icons/");
 
   if (
     isApiAuth ||
@@ -35,7 +44,8 @@ export async function proxy(req: NextRequest) {
     isPublicRegistration ||
     isPublicPasswordReset ||
     isCompleteAccountApi ||
-    isMcpPublic
+    isMcpPublic ||
+    isPublicAppIcon
   ) {
     return NextResponse.next();
   }
