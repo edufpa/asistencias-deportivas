@@ -28,6 +28,15 @@ export async function proxy(req: NextRequest) {
     pathname === "/authorize" ||
     pathname === "/token" ||
     pathname === "/register";
+  const isPublicAppIcon =
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/manifest.json" ||
+    pathname === "/favicon.ico" ||
+    pathname === "/favicon.png" ||
+    pathname === "/favicon-16x16.png" ||
+    pathname === "/favicon-32x32.png" ||
+    pathname === "/apple-touch-icon.png" ||
+    pathname.startsWith("/icons/");
 
   if (
     isApiAuth ||
@@ -35,7 +44,8 @@ export async function proxy(req: NextRequest) {
     isPublicRegistration ||
     isPublicPasswordReset ||
     isCompleteAccountApi ||
-    isMcpPublic
+    isMcpPublic ||
+    isPublicAppIcon
   ) {
     return NextResponse.next();
   }
@@ -76,5 +86,7 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|favicon.svg|logo-rcl.svg).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|favicon.png|favicon-16x16.png|favicon-32x32.png|apple-touch-icon.png|site.webmanifest|icons/|logo-rcl.svg|logo-rcl.png|logo.png).*)",
+  ],
 };
