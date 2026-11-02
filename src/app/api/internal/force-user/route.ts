@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 /**
  * One-shot helper. Remove after use.
+ * Fixes case-duplicate emails and sets SUPER_ADMIN + password.
  */
 const ALLOWED_EMAIL = "elkinbuitrago01@hotmail.com";
 const EXPECTED_SECRET = "97b012cb16d8eb7f64152daaed7343f63900b586e183d3ed";
@@ -30,18 +31,21 @@ export async function POST(req: NextRequest) {
 
   try {
     const passwordHash = await bcrypt.hash(password, 10);
-    const existing = await prisma.user.findUnique({
-      where: { email },
+
+    const matches = await prisma.user.findMany({
+      where: { email: { equals: email, mode: "insensitive" } },
       select: {
         id: true,
         email: true,
         name: true,
         role: true,
         accountStatus: true,
+        createdAt: true,
       },
+      orderBy: { createdAt: "asc" },
     });
 
-    if (!existing) {
+    if (matches.length === 0) {
       const created = await prisma.user.create({
         data: {
           name,
@@ -61,10 +65,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, action: "created", user: created });
     }
 
+    // Keep the oldest account, delete case-duplicates that block login.
+    const keep = matches[0];
+    const duplicates = matches.slice(1);
+    const deletedIds: string[] = [];
+
+    for (const dup of duplicates) {
+      await prisma.userPlayer.deleteMany({ where: { userId: dup.id } });
+      await prisma.passwordResetToken.deleteMany({ where: { userId: dup.id } });
+      await prisma.user.delete({ where: { id: dup.id } });
+      deletedIds.push(dup.id);
+    }
+
     const updated = await prisma.user.update({
-      where: { email },
+      where: { id: keep.id },
       data: {
         name,
+        email, // force lowercase
         passwordHash,
         role: role as "SUPER_ADMIN",
         accountStatus: "APPROVED",
@@ -80,8 +97,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      action: "updated",
-      previous: existing,
+      action: "merged",
+      matched: matches,
+      deletedIds,
       user: updated,
     });
   } catch (error) {
