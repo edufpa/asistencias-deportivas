@@ -49,7 +49,9 @@ export async function POST(req: NextRequest) {
   if (!canManageUsers(ctx.role)) return forbidden("Solo administradores");
 
   const body = await req.json();
-  const { name, email, password, role, linkedPlayerIds } = body;
+  const { name, password, role, linkedPlayerIds } = body;
+  const email =
+    typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
 
   if (!name || !email || !password) {
     return NextResponse.json({ error: "Nombre, email y contraseña son requeridos" }, { status: 400 });
@@ -63,7 +65,9 @@ export async function POST(req: NextRequest) {
     return forbidden("No podés asignar ese rol");
   }
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
+  });
   if (existing) {
     return NextResponse.json({ error: "Ya existe un usuario con ese email" }, { status: 409 });
   }
