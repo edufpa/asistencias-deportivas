@@ -45,7 +45,9 @@ export async function POST(
   const documentId = normalizeDocumentId(payload.documentId);
   const birthIso = birthDateToIso(payload.birthDate)!;
 
-  const existingEmail = await prisma.user.findUnique({ where: { email } });
+  const existingEmail = await prisma.user.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
+  });
   if (existingEmail) {
     return NextResponse.json({ error: "Ya existe una cuenta con ese correo" }, { status: 409 });
   }

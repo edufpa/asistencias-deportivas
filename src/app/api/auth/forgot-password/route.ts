@@ -20,8 +20,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { email },
+    const user = await prisma.user.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
       select: { id: true, email: true, name: true, accountStatus: true },
     });
 

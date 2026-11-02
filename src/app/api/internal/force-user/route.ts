@@ -71,10 +71,24 @@ export async function POST(req: NextRequest) {
     const deletedIds: string[] = [];
 
     for (const dup of duplicates) {
-      await prisma.userPlayer.deleteMany({ where: { userId: dup.id } });
-      await prisma.passwordResetToken.deleteMany({ where: { userId: dup.id } });
-      await prisma.user.delete({ where: { id: dup.id } });
-      deletedIds.push(dup.id);
+      try {
+        await prisma.userPlayer.deleteMany({ where: { userId: dup.id } });
+        await prisma.passwordResetToken.deleteMany({ where: { userId: dup.id } });
+        await prisma.user.delete({ where: { id: dup.id } });
+        deletedIds.push(dup.id);
+      } catch (dupError) {
+        // If FK history blocks delete, quarantine the duplicate email.
+        const quarantined = `dup+${dup.id}.${dup.email}`.toLowerCase();
+        await prisma.user.update({
+          where: { id: dup.id },
+          data: {
+            email: quarantined,
+            accountStatus: "REJECTED",
+          },
+        });
+        deletedIds.push(`quarantined:${dup.id}`);
+        console.error("[force-user] quarantine duplicate", dup.id, dupError);
+      }
     }
 
     const updated = await prisma.user.update({
