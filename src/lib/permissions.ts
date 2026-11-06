@@ -188,6 +188,7 @@ export function navLinksForRole(role: AppRole, email?: string | null): NavLink[]
     links.push({ href: "/informes", label: "Informes" });
   }
   if (canAccessPartidos(role) && !usesPesasAttendanceDedicatedUx(email)) {
+    links.push({ href: "/control-partido", label: "Control partido" });
     links.push({ href: "/reportes/partidos", label: "Partidos" });
   }
   if (!usesPesasAttendanceDedicatedUx(email)) {
