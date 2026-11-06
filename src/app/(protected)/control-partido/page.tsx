@@ -90,9 +90,9 @@ export default function ControlPartidoListPage() {
 
       <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
         <p className="text-sm text-muted-foreground">
-          Tocá un número, registrá Gol / Expulsión / Penal. Expulsión y penal
-          suman falta; a las 3 el jugador queda fuera. El marcador se actualiza
-          solo.
+          Elegí Gol / Expulsión / Penal (quedan visibles arriba) y tocá el
+          número. Expulsión y penal suman falta; a las 3 el jugador queda fuera.
+          El marcador se actualiza solo.
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1 space-y-1.5">

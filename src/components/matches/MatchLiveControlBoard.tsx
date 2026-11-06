@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   FOUL_OUT_THRESHOLD,
-  LIVE_CAP_NUMBERS,
   LIVE_EVENT_LABELS,
   LIVE_QUARTERS,
   LIVE_TEAM_LABELS,
@@ -24,7 +23,31 @@ type MatchMeta = {
   notes: string | null;
 };
 
-type Selection = { team: LiveTeam; capNumber: number } | null;
+const ACTION_BUTTONS: {
+  type: LiveEventType;
+  label: string;
+  className: string;
+  activeClassName: string;
+}[] = [
+  {
+    type: "GOAL",
+    label: "Gol",
+    className: "border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100",
+    activeClassName: "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-500",
+  },
+  {
+    type: "EXPULSION",
+    label: "Expulsión",
+    className: "border-red-200 bg-red-50 text-red-800 hover:bg-red-100",
+    activeClassName: "border-red-600 bg-red-600 text-white hover:bg-red-500",
+  },
+  {
+    type: "PENALTY",
+    label: "Penal",
+    className: "border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100",
+    activeClassName: "border-amber-500 bg-amber-500 text-white hover:bg-amber-400",
+  },
+];
 
 function foulDots(foulCount: number) {
   return Array.from({ length: FOUL_OUT_THRESHOLD }, (_, i) => (
@@ -41,12 +64,12 @@ function foulDots(foulCount: number) {
 function CapButton({
   cap,
   team,
-  selected,
+  disabled,
   onSelect,
 }: {
   cap: CapLiveState;
   team: LiveTeam;
-  selected: boolean;
+  disabled: boolean;
   onSelect: () => void;
 }) {
   const isBlue = team === "BLUE";
@@ -54,15 +77,14 @@ function CapButton({
     <button
       type="button"
       onClick={onSelect}
-      disabled={cap.fouledOut}
+      disabled={cap.fouledOut || disabled}
       className={cn(
         "relative flex aspect-square flex-col items-center justify-center rounded-xl border-2 text-lg font-bold transition active:scale-95",
         cap.fouledOut && "cursor-not-allowed opacity-45 grayscale",
-        selected && "ring-2 ring-offset-2 ring-offset-background",
+        disabled && !cap.fouledOut && "opacity-70",
         isBlue
           ? "border-blue-300 bg-blue-600 text-white hover:bg-blue-500"
-          : "border-slate-300 bg-white text-slate-900 hover:bg-slate-50",
-        selected && (isBlue ? "ring-blue-300" : "ring-slate-400")
+          : "border-slate-300 bg-white text-slate-900 hover:bg-slate-50"
       )}
       title={
         cap.fouledOut
@@ -94,12 +116,12 @@ function CapButton({
 function TeamPanel({
   team,
   caps,
-  selected,
+  disabled,
   onSelect,
 }: {
   team: LiveTeam;
   caps: CapLiveState[];
-  selected: Selection;
+  disabled: boolean;
   onSelect: (team: LiveTeam, capNumber: number) => void;
 }) {
   const isBlue = team === "BLUE";
@@ -124,9 +146,7 @@ function TeamPanel({
             key={`${team}-${cap.capNumber}`}
             cap={cap}
             team={team}
-            selected={
-              selected?.team === team && selected.capNumber === cap.capNumber
-            }
+            disabled={disabled}
             onSelect={() => onSelect(team, cap.capNumber)}
           />
         ))}
@@ -139,7 +159,7 @@ export function MatchLiveControlBoard({ matchId }: { matchId: string }) {
   const [match, setMatch] = useState<MatchMeta | null>(null);
   const [board, setBoard] = useState<MatchLiveBoard | null>(null);
   const [quarter, setQuarter] = useState(1);
-  const [selection, setSelection] = useState<Selection>(null);
+  const [action, setAction] = useState<LiveEventType>("GOAL");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -162,17 +182,17 @@ export function MatchLiveControlBoard({ matchId }: { matchId: string }) {
     void load();
   }, [load]);
 
-  async function registerEvent(eventType: LiveEventType) {
-    if (!selection || saving) return;
+  async function registerEvent(team: LiveTeam, capNumber: number) {
+    if (saving) return;
     setSaving(true);
     setError("");
     const res = await fetch(`/api/control-partido/${matchId}/events`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        team: selection.team,
-        capNumber: selection.capNumber,
-        eventType,
+        team,
+        capNumber,
+        eventType: action,
         quarter,
       }),
     });
@@ -183,7 +203,6 @@ export function MatchLiveControlBoard({ matchId }: { matchId: string }) {
       return;
     }
     setBoard(data.board);
-    setSelection(null);
   }
 
   async function undoEvent(eventId: string) {
@@ -268,24 +287,45 @@ export function MatchLiveControlBoard({ matchId }: { matchId: string }) {
         </p>
       </div>
 
-      {/* Cuarto */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-medium text-muted-foreground">Cuarto</span>
-        {LIVE_QUARTERS.map((q) => (
-          <button
-            key={q}
-            type="button"
-            onClick={() => setQuarter(q)}
-            className={cn(
-              "h-8 min-w-8 rounded-lg border px-2 text-sm font-semibold",
-              quarter === q
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border bg-background hover:bg-muted"
-            )}
-          >
-            {q}
-          </button>
-        ))}
+      {/* Acciones siempre visibles */}
+      <div className="sticky top-14 z-20 space-y-2 rounded-xl border bg-background/95 p-3 shadow-md backdrop-blur">
+        <p className="text-center text-xs font-medium text-muted-foreground">
+          Acción activa → tocá un número
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          {ACTION_BUTTONS.map((btn) => (
+            <button
+              key={btn.type}
+              type="button"
+              disabled={saving}
+              onClick={() => setAction(btn.type)}
+              className={cn(
+                "h-12 rounded-xl border-2 text-sm font-bold transition active:scale-95 sm:h-14 sm:text-base",
+                action === btn.type ? btn.activeClassName : btn.className
+              )}
+            >
+              {btn.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+          <span className="text-xs font-medium text-muted-foreground">Cuarto</span>
+          {LIVE_QUARTERS.map((q) => (
+            <button
+              key={q}
+              type="button"
+              onClick={() => setQuarter(q)}
+              className={cn(
+                "h-8 min-w-8 rounded-lg border px-2 text-sm font-semibold",
+                quarter === q
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background hover:bg-muted"
+              )}
+            >
+              {q}
+            </button>
+          ))}
+        </div>
       </div>
 
       {error && (
@@ -294,59 +334,18 @@ export function MatchLiveControlBoard({ matchId }: { matchId: string }) {
         </Alert>
       )}
 
-      {/* Acciones al seleccionar gorro */}
-      {selection && (
-        <div className="sticky top-14 z-20 rounded-xl border bg-background/95 p-3 shadow-md backdrop-blur">
-          <p className="mb-2 text-center text-sm font-medium">
-            Gorro{" "}
-            <span className="font-bold">{selection.capNumber}</span> ·{" "}
-            {LIVE_TEAM_LABELS[selection.team]}
-          </p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Button
-              className="bg-emerald-600 hover:bg-emerald-500"
-              disabled={saving}
-              onClick={() => void registerEvent("GOAL")}
-            >
-              Gol
-            </Button>
-            <Button
-              variant="destructive"
-              disabled={saving}
-              onClick={() => void registerEvent("EXPULSION")}
-            >
-              Expulsión
-            </Button>
-            <Button
-              className="bg-amber-500 text-white hover:bg-amber-400"
-              disabled={saving}
-              onClick={() => void registerEvent("PENALTY")}
-            >
-              Penal
-            </Button>
-            <Button
-              variant="outline"
-              disabled={saving}
-              onClick={() => setSelection(null)}
-            >
-              Cancelar
-            </Button>
-          </div>
-        </div>
-      )}
-
       <div className="grid gap-4 lg:grid-cols-2">
         <TeamPanel
           team="BLUE"
           caps={board.blue.caps}
-          selected={selection}
-          onSelect={(team, capNumber) => setSelection({ team, capNumber })}
+          disabled={saving}
+          onSelect={(team, capNumber) => void registerEvent(team, capNumber)}
         />
         <TeamPanel
           team="WHITE"
           caps={board.white.caps}
-          selected={selection}
-          onSelect={(team, capNumber) => setSelection({ team, capNumber })}
+          disabled={saving}
+          onSelect={(team, capNumber) => void registerEvent(team, capNumber)}
         />
       </div>
 
@@ -357,7 +356,7 @@ export function MatchLiveControlBoard({ matchId }: { matchId: string }) {
         </div>
         {activeEvents.length === 0 ? (
           <p className="px-4 py-6 text-sm text-muted-foreground">
-            Tocá un número (1–15) y elegí Gol, Expulsión o Penal.
+            Elegí Gol, Expulsión o Penal arriba y tocá un número (1–15).
           </p>
         ) : (
           <ul className="divide-y">
