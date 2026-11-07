@@ -245,13 +245,13 @@ export function MatchLiveControlBoard({ matchId }: { matchId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <Link
-            href="/control-partido"
+            href="/reportes/partidos"
             className="text-sm text-muted-foreground hover:text-foreground"
           >
-            ← Controles
+            ← Partidos
           </Link>
           <h1 className="text-xl font-bold tracking-tight">
-            Control Azul vs Blanco
+            Partido de práctica · Azul vs Blanco
           </h1>
           <p className="text-sm text-muted-foreground">
             {match.matchDate}

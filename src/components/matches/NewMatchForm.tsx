@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,21 +12,38 @@ import { PageShell, PageHeader, FilterChip, FilterChipGroup } from "@/components
 import { cn } from "@/lib/utils";
 
 type Convocatoria = { id: string; name: string; status: "ACTIVE" | "CLOSED" };
+type MatchScope = "convocatoria" | "amistoso" | "practica";
+
+function initialScope(raw: string | null): MatchScope {
+  if (raw === "practica" || raw === "amistoso" || raw === "convocatoria") return raw;
+  return "practica";
+}
 
 export function NewMatchForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [convocatorias, setConvocatorias] = useState<Convocatoria[]>([]);
-  const [matchScope, setMatchScope] = useState<"convocatoria" | "amistoso">("convocatoria");
+  const [matchScope, setMatchScope] = useState<MatchScope>(() =>
+    initialScope(searchParams.get("modalidad"))
+  );
   const [newConv, setNewConv] = useState("");
   const [form, setForm] = useState({
     matchDate: new Date().toISOString().split("T")[0],
-    matchType: "OFFICIAL" as "OFFICIAL" | "PRACTICE",
+    matchType: "PRACTICE" as "OFFICIAL" | "PRACTICE",
     opponent: "",
     location: "",
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [rosterPlayerIds, setRosterPlayerIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const scope = initialScope(searchParams.get("modalidad"));
+    setMatchScope(scope);
+    if (scope === "practica") {
+      setForm((f) => ({ ...f, matchType: "PRACTICE" }));
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetch("/api/convocatorias")
@@ -36,7 +53,37 @@ export function NewMatchForm() {
       });
   }, []);
 
+  async function handleSavePractice() {
+    setSaving(true);
+    setSaveError("");
+    try {
+      const res = await fetch("/api/control-partido", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          matchDate: form.matchDate || undefined,
+          location: form.location.trim() || undefined,
+          notes: "Partido de práctica Azul vs Blanco",
+        }),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        router.push(`/control-partido/${created.id}`);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setSaveError(d.error ?? "Error al crear el partido de práctica");
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Error de conexión");
+    }
+    setSaving(false);
+  }
+
   async function handleSaveMatch() {
+    if (matchScope === "practica") {
+      await handleSavePractice();
+      return;
+    }
     if (matchScope === "convocatoria" && !newConv) {
       setSaveError("Seleccioná una convocatoria activa");
       return;
@@ -98,12 +145,23 @@ export function NewMatchForm() {
 
       <PageHeader
         title="Nuevo Partido"
-        description="Datos básicos del encuentro. Marcador, calificaciones y observaciones se cargan en el detalle."
+        description="Partido de práctica Azul/Blanco, convocatoria u amistoso."
       />
 
       <Card>
         <CardContent className="pt-6 space-y-5">
           <FilterChipGroup label="Modalidad">
+            <FilterChip
+              size="md"
+              active={matchScope === "practica"}
+              onClick={() => {
+                setMatchScope("practica");
+                setForm((f) => ({ ...f, matchType: "PRACTICE" }));
+                setSaveError("");
+              }}
+            >
+              Partido de práctica
+            </FilterChip>
             <FilterChip
               size="md"
               active={matchScope === "convocatoria"}
@@ -127,6 +185,13 @@ export function NewMatchForm() {
             </FilterChip>
           </FilterChipGroup>
 
+          {matchScope === "practica" && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50/70 px-4 py-3 text-sm text-blue-900">
+              Control en vivo <strong>Azul vs Blanco</strong> con gorros 1–15:
+              gol, expulsión y penal. El marcador se actualiza solo.
+            </div>
+          )}
+
           {matchScope === "convocatoria" ? (
             <div className="space-y-1">
               <Label>Convocatoria activa *</Label>
@@ -143,12 +208,12 @@ export function NewMatchForm() {
                 ))}
               </select>
               {convocatorias.length === 0 && (
-                <p className="text-xs text-amber-600">No hay convocatorias activas. Creá una o usá Amistoso.</p>
+                <p className="text-xs text-amber-600">No hay convocatorias activas. Creá una o usá Amistoso / Práctica.</p>
               )}
             </div>
-          ) : (
+          ) : matchScope === "amistoso" ? (
             <MatchRosterSelector selected={rosterPlayerIds} onChange={setRosterPlayerIds} />
-          )}
+          ) : null}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -159,32 +224,41 @@ export function NewMatchForm() {
                 onChange={(e) => setForm({ ...form, matchDate: e.target.value })}
               />
             </div>
-            <div className="space-y-1">
-              <Label>Tipo</Label>
-              <select
-                value={form.matchType}
-                onChange={(e) => setForm({ ...form, matchType: e.target.value as "OFFICIAL" | "PRACTICE" })}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="OFFICIAL">Oficial</option>
-                <option value="PRACTICE">Preparación</option>
-              </select>
-            </div>
+            {matchScope !== "practica" ? (
+              <div className="space-y-1">
+                <Label>Tipo</Label>
+                <select
+                  value={form.matchType}
+                  onChange={(e) => setForm({ ...form, matchType: e.target.value as "OFFICIAL" | "PRACTICE" })}
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="OFFICIAL">Oficial</option>
+                  <option value="PRACTICE">Preparación</option>
+                </select>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <Label>Tipo</Label>
+                <Input value="Práctica · Azul vs Blanco" disabled />
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Rival</Label>
+            {matchScope !== "practica" && (
+              <div className="space-y-1">
+                <Label>Rival</Label>
+                <Input
+                  placeholder="Ej: Bolivia"
+                  value={form.opponent}
+                  onChange={(e) => setForm({ ...form, opponent: e.target.value })}
+                />
+              </div>
+            )}
+            <div className={cn("space-y-1", matchScope === "practica" && "sm:col-span-2")}>
+              <Label>Sede / piscina</Label>
               <Input
-                placeholder="Ej: Bolivia"
-                value={form.opponent}
-                onChange={(e) => setForm({ ...form, opponent: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Sede</Label>
-              <Input
-                placeholder="Ej: Lima"
+                placeholder="Ej: Regatas"
                 value={form.location}
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
               />
@@ -197,8 +271,12 @@ export function NewMatchForm() {
             <Link href="/reportes/partidos" className={cn(buttonVariants({ variant: "outline" }))}>
               Cancelar
             </Link>
-            <Button onClick={handleSaveMatch} disabled={saving}>
-              {saving ? "Guardando..." : "Crear partido"}
+            <Button onClick={() => void handleSaveMatch()} disabled={saving}>
+              {saving
+                ? "Guardando..."
+                : matchScope === "practica"
+                  ? "Crear partido de práctica"
+                  : "Crear partido"}
             </Button>
           </div>
         </CardContent>

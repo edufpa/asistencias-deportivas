@@ -36,6 +36,7 @@ type MatchSummary = {
   opponent: string | null; location: string | null;
   homeScore: number | null; awayScore: number | null;
   quarterDuration: number | null;
+  blueWhiteMode?: boolean;
   evalOverall: number | null; evalAttack: number | null;
   evalDefense: number | null; evalFinishing: number | null;
   notes: string | null;
@@ -124,9 +125,17 @@ export default function ReportePartidosPage() {
         title="Reporte de Partidos"
         description="Resultados, estadísticas y calificaciones de equipo"
         actions={
-          <Link href="/reportes/partidos/nuevo" className={cn(buttonVariants())}>
-            + Nuevo Partido
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/reportes/partidos/nuevo" className={cn(buttonVariants())}>
+              + Nuevo Partido
+            </Link>
+            <Link
+              href="/reportes/partidos/nuevo?modalidad=practica"
+              className={cn(buttonVariants({ variant: "outline" }))}
+            >
+              Partido de práctica
+            </Link>
+          </div>
         }
       />
 
@@ -261,12 +270,33 @@ export default function ReportePartidosPage() {
                         <div className="space-y-1.5 flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-semibold text-gray-900">
-                              {m.opponent ? `vs ${m.opponent}` : "Sin rival"}
+                              {m.blueWhiteMode
+                                ? "Azul vs Blanco"
+                                : m.opponent
+                                  ? `vs ${m.opponent}`
+                                  : "Sin rival"}
                             </p>
-                            <Badge variant={m.convocatoriaId ? (m.matchType === "OFFICIAL" ? "default" : "secondary") : "outline"} className="text-xs">
-                              {m.convocatoriaId ? (m.matchType === "OFFICIAL" ? "Oficial" : "Preparación") : "Amistoso"}
+                            <Badge
+                              variant={
+                                m.blueWhiteMode
+                                  ? "secondary"
+                                  : m.convocatoriaId
+                                    ? m.matchType === "OFFICIAL"
+                                      ? "default"
+                                      : "secondary"
+                                    : "outline"
+                              }
+                              className="text-xs"
+                            >
+                              {m.blueWhiteMode
+                                ? "Partido de práctica"
+                                : m.convocatoriaId
+                                  ? m.matchType === "OFFICIAL"
+                                    ? "Oficial"
+                                    : "Preparación"
+                                  : "Amistoso"}
                             </Badge>
-                            {resultConfig && (
+                            {resultConfig && !m.blueWhiteMode && (
                               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${resultConfig.bg}`}>
                                 {resultConfig.label}
                               </span>
@@ -297,10 +327,20 @@ export default function ReportePartidosPage() {
                           ) : (
                             <p className="text-gray-300 text-sm">Sin resultado</p>
                           )}
-                          <p className="text-xs text-gray-400">{m.totalGoals} gol{m.totalGoals !== 1 ? "es" : ""} marcados</p>
-                          <Link href={m.convocatoriaId ? `/convocatorias/${m.convocatoriaId}/partidos/${m.id}` : `/reportes/partidos/${m.id}`}>
+                          {!m.blueWhiteMode && (
+                            <p className="text-xs text-gray-400">{m.totalGoals} gol{m.totalGoals !== 1 ? "es" : ""} marcados</p>
+                          )}
+                          <Link
+                            href={
+                              m.blueWhiteMode
+                                ? `/control-partido/${m.id}`
+                                : m.convocatoriaId
+                                  ? `/convocatorias/${m.convocatoriaId}/partidos/${m.id}`
+                                  : `/reportes/partidos/${m.id}`
+                            }
+                          >
                             <Button variant="outline" size="sm" className="text-blue-600 border-blue-200 hover:bg-blue-50 text-xs">
-                              Ver detalle →
+                              {m.blueWhiteMode ? "Abrir control →" : "Ver detalle →"}
                             </Button>
                           </Link>
                         </div>

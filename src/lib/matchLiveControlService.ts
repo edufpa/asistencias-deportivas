@@ -81,7 +81,7 @@ export async function createBlueWhiteMatch(input: {
       matchType: "PRACTICE",
       opponent: "Equipo Blanco",
       location: input.location?.trim() || null,
-      notes: input.notes?.trim() || "Control en vivo Azul vs Blanco",
+      notes: input.notes?.trim() || "Partido de práctica Azul vs Blanco",
       blueWhiteMode: true,
       homeScore: 0,
       awayScore: 0,

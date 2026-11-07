@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -17,6 +17,7 @@ import {
 } from "@/components/layout";
 import { useAppRole } from "@/hooks/useAppRole";
 import { canAccessPartidos } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
 
 type MatchRow = {
   id: string;
@@ -60,12 +61,15 @@ export default function ControlPartidoListPage() {
     const res = await fetch("/api/control-partido", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ location: location.trim() || undefined }),
+      body: JSON.stringify({
+        location: location.trim() || undefined,
+        notes: "Partido de práctica Azul vs Blanco",
+      }),
     });
     const data = await res.json();
     setCreating(false);
     if (!res.ok) {
-      setError(data.error ?? "No se pudo crear el control");
+      setError(data.error ?? "No se pudo crear el partido de práctica");
       return;
     }
     router.push(`/control-partido/${data.id}`);
@@ -83,16 +87,27 @@ export default function ControlPartidoListPage() {
 
   return (
     <PageShell>
+      <Link href="/reportes/partidos" className="text-sm text-muted-foreground hover:text-foreground">
+        ← Partidos
+      </Link>
+
       <PageHeader
-        title="Control de partido"
+        title="Partidos de práctica"
         description="Azul vs Blanco · gorros 1–15 · goles, expulsiones y penales"
+        actions={
+          <Link
+            href="/reportes/partidos/nuevo?modalidad=practica"
+            className={cn(buttonVariants({ variant: "outline" }))}
+          >
+            Desde Partidos
+          </Link>
+        }
       />
 
       <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
         <p className="text-sm text-muted-foreground">
-          Elegí Gol / Expulsión / Penal (quedan visibles arriba) y tocá el
-          número. Expulsión y penal suman falta; a las 3 el jugador queda fuera.
-          El marcador se actualiza solo.
+          Link de <strong>partido de práctica</strong>: elegí Gol / Expulsión /
+          Penal y tocá el número. A las 3 faltas el jugador queda fuera.
         </p>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="flex-1 space-y-1.5">
@@ -105,7 +120,7 @@ export default function ControlPartidoListPage() {
             />
           </div>
           <Button onClick={() => void startControl()} disabled={creating}>
-            {creating ? "Creando..." : "Nuevo control Azul vs Blanco"}
+            {creating ? "Creando..." : "Nuevo partido de práctica"}
           </Button>
         </div>
         {error && (
@@ -118,7 +133,7 @@ export default function ControlPartidoListPage() {
       {loading ? (
         <LoadingState />
       ) : matches.length === 0 ? (
-        <EmptyState message="Sin controles todavía. Creá un control Azul vs Blanco para empezar." />
+        <EmptyState message="Sin partidos de práctica. Creá uno para empezar el control Azul vs Blanco." />
       ) : (
         <ul className="space-y-2">
           {matches.map((m) => (
@@ -129,6 +144,7 @@ export default function ControlPartidoListPage() {
               >
                 <div>
                   <p className="font-semibold">
+                    Partido de práctica ·{" "}
                     {format(new Date(`${m.matchDate}T12:00:00`), "dd MMM yyyy", {
                       locale: es,
                     })}
