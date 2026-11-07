@@ -26,6 +26,7 @@ model User {
   testsCreated       Test[]
   testEvaluations    TestEvaluation[]
   matchesCreated     Match[]
+  matchLiveEvents    MatchLiveEvent[]
   activityLogs       ActivityLog[]
   linkedPlayers      UserPlayer[]
   passwordResetTokens PasswordResetToken[]
@@ -366,6 +367,8 @@ model Match {
   awayScore        Int?
   quarterDuration  Int?      // minutes per quarter
   notes            String?
+  /// Control en vivo Azul vs Blanco (gorros 1–15)
+  blueWhiteMode    Boolean   @default(false)
   // Team evaluations 1-4
   evalOverall      Int?
   evalAttack       Int?
@@ -382,8 +385,40 @@ model Match {
 
   playerStats MatchPlayerStat[]
   rosterPlayers MatchRosterPlayer[]
+  liveEvents  MatchLiveEvent[]
 
   @@map("matches")
+}
+
+enum MatchSide {
+  BLUE
+  WHITE
+}
+
+enum MatchLiveEventType {
+  GOAL
+  EXPULSION
+  PENALTY
+}
+
+/// Eventos del control en vivo Azul/Blanco (gorro 1–15).
+model MatchLiveEvent {
+  id        String             @id @default(cuid())
+  team      MatchSide
+  capNumber Int
+  eventType MatchLiveEventType
+  quarter   Int                @default(1)
+  undone    Boolean            @default(false)
+  createdAt DateTime           @default(now())
+
+  matchId String
+  match   Match  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  createdById String
+  createdBy   User   @relation(fields: [createdById], references: [id])
+
+  @@index([matchId, undone, createdAt])
+  @@map("match_live_events")
 }
 
 model MatchRosterPlayer {

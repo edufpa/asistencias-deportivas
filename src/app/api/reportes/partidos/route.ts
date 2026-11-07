@@ -65,15 +65,20 @@ export async function GET(req: NextRequest) {
       homeScore: m.homeScore,
       awayScore: m.awayScore,
       quarterDuration: m.quarterDuration,
+      blueWhiteMode: m.blueWhiteMode,
       evalOverall: m.evalOverall,
       evalAttack: m.evalAttack,
       evalDefense: m.evalDefense,
       evalFinishing: m.evalFinishing,
       notes: m.notes,
       convocatoriaId: m.convocatoriaId,
-      convocatoriaName: m.convocatoria?.name ?? "Amistoso",
+      convocatoriaName: m.blueWhiteMode
+        ? "Partido de práctica"
+        : m.convocatoria?.name ?? "Amistoso",
       createdBy: m.createdBy.name,
-      totalGoals,
+      totalGoals: m.blueWhiteMode
+        ? (m.homeScore ?? 0) + (m.awayScore ?? 0)
+        : totalGoals,
       topScorer: topScorer?.goals > 0 ? { name: topScorer.name, goals: topScorer.goals } : null,
       playerCount: statsByPlayer.size,
     };

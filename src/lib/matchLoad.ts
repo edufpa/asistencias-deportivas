@@ -93,6 +93,7 @@ export async function loadMatchDetail(matchId: string) {
     awayScore: match.awayScore,
     quarterDuration: match.quarterDuration,
     notes: match.notes,
+    blueWhiteMode: match.blueWhiteMode,
     evalOverall: match.evalOverall,
     evalAttack: match.evalAttack,
     evalDefense: match.evalDefense,

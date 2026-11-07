@@ -206,7 +206,12 @@ export default function PartidosPage() {
         title="Partidos"
         description="Oficiales y de preparación"
         actions={
-          <Button onClick={() => { resetForm(); setOpenForm(true); }}>+ Nuevo partido</Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={() => { resetForm(); setOpenForm(true); }}>+ Nuevo partido</Button>
+            <Link href="/reportes/partidos/nuevo?modalidad=practica">
+              <Button variant="outline">Partido de práctica</Button>
+            </Link>
+          </div>
         }
       />
 

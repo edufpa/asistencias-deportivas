@@ -49,6 +49,7 @@ type MatchData = {
   awayScore: number | null;
   quarterDuration: number | null;
   notes: string | null;
+  blueWhiteMode?: boolean;
   evalOverall: number | null;
   evalAttack: number | null;
   evalDefense: number | null;
@@ -291,12 +292,39 @@ export function MatchDetailContent({
       </Link>
 
       <PageHeader
-        title={match.opponent ? `vs ${match.opponent}` : "—"}
+        title={
+          match.blueWhiteMode
+            ? "Azul vs Blanco"
+            : match.opponent
+              ? `vs ${match.opponent}`
+              : "—"
+        }
         description={matchDescription || "—"}
         actions={
           <>
-            <Badge variant={match.isFriendly ? "outline" : match.matchType === "OFFICIAL" ? "default" : "secondary"}>
-              {match.isFriendly ? "Amistoso" : match.matchType === "OFFICIAL" ? "Oficial" : "Preparación"}
+            {match.blueWhiteMode && (
+              <Link href={`/control-partido/${match.id}`}>
+                <Button>Abrir control en vivo</Button>
+              </Link>
+            )}
+            <Badge
+              variant={
+                match.blueWhiteMode
+                  ? "secondary"
+                  : match.isFriendly
+                    ? "outline"
+                    : match.matchType === "OFFICIAL"
+                      ? "default"
+                      : "secondary"
+              }
+            >
+              {match.blueWhiteMode
+                ? "Partido de práctica"
+                : match.isFriendly
+                  ? "Amistoso"
+                  : match.matchType === "OFFICIAL"
+                    ? "Oficial"
+                    : "Preparación"}
             </Badge>
             {saved && <span className="text-sm font-medium text-emerald-600">✓ Guardado</span>}
             <Button onClick={handleSaveStats} disabled={saving || goalsOverLimit}>
