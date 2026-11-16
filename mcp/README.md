@@ -2,17 +2,39 @@
 
 Servidor [Model Context Protocol](https://modelcontextprotocol.io) para consultar datos de **Asistencias Deportivas** desde Cursor.
 
-## Autenticación (recomendado — producción)
+## Autenticación con token en la URL (recomendado — simple)
 
-El MCP remoto usa **OAuth con tu login de la app** (email + contraseña):
+Generá un link personal desde **Mi cuenta → MCP con token en la URL** en la app. El token viaja en el path:
+
+`https://regatas.tecvi.ai/api/mcp/t/<tu-token>`
+
+También funciona como query: `https://regatas.tecvi.ai/api/mcp?token=<tu-token>`.
+
+Config en `.cursor/mcp.json` (pegá la URL completa que te muestra la app):
+
+```json
+{
+  "mcpServers": {
+    "asistencias": {
+      "url": "https://regatas.tecvi.ai/api/mcp/t/rt_XXXXXXXX"
+    }
+  }
+}
+```
+
+- El token se muestra **una sola vez** al crearlo; después solo ves un prefijo.
+- Podés revocar tokens desde la misma pantalla.
+- Cada token actúa con los permisos de tu usuario (cuenta aprobada).
+
+### Alternativa: OAuth (producción)
+
+El MCP remoto también soporta **OAuth con tu login** (email + contraseña):
 
 1. En Cursor → **Settings → MCP**, el servidor `asistencias` aparece con botón **Connect**.
 2. Cursor abre el navegador en la página de login de Regatas Lima.
 3. Ingresás tu **email y contraseña** (la misma cuenta de la web).
 4. Tras autorizar, el navegador redirige a Cursor (`cursor://...`) y queda conectado.
 5. Cursor renueva el token automáticamente.
-
-Config en `.cursor/mcp.json`:
 
 ```json
 {
@@ -24,7 +46,7 @@ Config en `.cursor/mcp.json`:
 }
 ```
 
-Para desarrollo local:
+Para desarrollo local (OAuth o `?token=`):
 
 ```json
 {
@@ -39,7 +61,7 @@ Para desarrollo local:
 ### Requisitos en el servidor
 
 - `NEXTAUTH_URL` o `MCP_BASE_URL` configurada (ej. `https://regatas.tecvi.ai`)
-- Tablas OAuth creadas: `npx prisma db push`
+- Tablas OAuth + `mcp_url_tokens` creadas: `npx prisma db push`
 
 ## Modo local sin login (solo desarrollo)
 

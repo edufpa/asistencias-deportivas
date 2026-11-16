@@ -33,6 +33,7 @@ model User {
   coachReports       CoachReport[]
   mcpAuthorizationCodes McpAuthorizationCode[]
   mcpAccessTokens       McpAccessToken[]
+  mcpUrlTokens          McpUrlToken[]
 
   @@map("users")
 }
@@ -581,4 +582,22 @@ model McpAccessToken {
   @@index([clientId])
   @@index([userId])
   @@map("mcp_access_tokens")
+}
+
+/// Token personal de larga duración para conectar MCP con el token en la URL.
+model McpUrlToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique
+  label      String?
+  /// Prefijo visible del token (sin revelar el secreto completo).
+  tokenPrefix String
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("mcp_url_tokens")
 }
