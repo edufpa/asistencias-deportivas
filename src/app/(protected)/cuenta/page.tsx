@@ -3,6 +3,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChangeEmailForm } from "@/components/account/ChangeEmailForm";
 import { ChangePasswordForm } from "@/components/account/ChangePasswordForm";
+import { McpUrlTokenCard } from "@/components/account/McpUrlTokenCard";
 import { PageHeader, PageShell } from "@/components/layout";
 
 export default function CuentaPage() {
@@ -10,9 +11,21 @@ export default function CuentaPage() {
     <PageShell>
       <PageHeader
         title="Mi cuenta"
-        description="Administrá tu correo y la seguridad de tu acceso al sistema"
+        description="Administrá tu correo, seguridad y conexión MCP"
       />
       <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>MCP con token en la URL</CardTitle>
+            <CardDescription>
+              Generá un link para conectar Cursor/Claude al MCP de Asistencias sin OAuth.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <McpUrlTokenCard />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle>Cambiar correo</CardTitle>
